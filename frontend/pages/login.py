@@ -1,0 +1,51 @@
+import streamlit as st
+import requests
+
+st.set_page_config(layout="centered")
+
+# ================== CSS ==================
+st.markdown("""
+<style>
+.login-box {
+    padding: 40px;
+    background: #1C1F26;
+    border-radius: 15px;
+    box-shadow: 0px 0px 20px rgba(108,99,255,0.3);
+}
+.stTextInput>div>div>input {
+    border-radius: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("<div class='login-box'>", unsafe_allow_html=True)
+
+st.title("🔐 Login")
+
+student_id = st.text_input("รหัสนักศึกษา")
+password = st.text_input("รหัสผ่าน", type="password")
+
+if st.button("Login"):
+
+    with st.spinner("กำลังเข้าสู่ระบบ..."):
+        res = requests.post(
+            "http://localhost:8000/login",
+            json={
+                "student_id": student_id,
+                "password": password
+            }
+        )
+
+    data = res.json()
+
+    if "error" not in data:
+        st.session_state.user = data
+        st.success("Login สำเร็จ 🎉")
+
+        # ✅ สำคัญมาก: redirect กลับ app.py
+        st.switch_page("app.py")
+
+    else:
+        st.error("เข้าสู่ระบบไม่สำเร็จ")
+
+st.markdown("</div>", unsafe_allow_html=True)
