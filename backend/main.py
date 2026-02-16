@@ -8,6 +8,8 @@ from pdf_utils import pdf_to_text
 import shutil, os, json
 from fastapi.middleware.cors import CORSMiddleware
 
+app = FastAPI()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,6 +19,7 @@ app.add_middleware(
 )
 
 Base.metadata.create_all(bind=engine)
+
 app = FastAPI()
 
 def get_db():
