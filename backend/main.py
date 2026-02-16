@@ -33,6 +33,10 @@ def require_admin(user):
     if user.role != "admin":
         raise HTTPException(status_code=403)
 
+@app.get("/")
+def root():
+    return {"message": "AI Tutor Backend is running 🚀"}
+
 # ---------- AUTH ----------
 @app.post("/register")
 def register(data: dict, db: Session = Depends(get_db)):
