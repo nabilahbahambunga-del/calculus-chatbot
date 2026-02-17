@@ -1,18 +1,14 @@
-from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
-from sqlalchemy.orm import Session
-from database import SessionLocal, engine
-from models import Base, User, Chat, Skill, Document, ExerciseResult
-from auth import hash_password, verify_password
-from ai import ask_llama, grade_answer
-from pdf_utils import pdf_to_text
-import shutil, os, json
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://calculus-backend.onrender.com"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
