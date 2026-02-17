@@ -1,7 +1,19 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+import shutil, os, json
+
+from database import SessionLocal, engine
+from models import Base, User, Chat, Skill, Document, ExerciseResult
+from auth import hash_password, verify_password
+from ai import ask_llama, grade_answer
+from pdf_utils import pdf_to_text
+
+# ------------------ APP INIT ------------------
 
 app = FastAPI()
+
+# ------------------ CORS ------------------
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,9 +26,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ------------------ CREATE TABLES ------------------
+
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+# ------------------ DB DEPENDENCY ------------------
 
 def get_db():
     db = SessionLocal()
@@ -27,13 +41,16 @@ def get_db():
 
 def require_admin(user):
     if user.role != "admin":
-        raise HTTPException(status_code=403)
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+# ------------------ ROOT ------------------
 
 @app.get("/")
 def root():
     return {"message": "AI Tutor Backend is running 🚀"}
 
-# ---------- AUTH ----------
+# ------------------ AUTH ------------------
+
 @app.post("/register")
 def register(data: dict, db: Session = Depends(get_db)):
     user = User(
@@ -53,7 +70,8 @@ def login(data: dict, db: Session = Depends(get_db)):
         return {"error": "login failed"}
     return {"id": user.id, "name": user.name, "role": user.role}
 
-# ---------- PDF ----------
+# ------------------ PDF ------------------
+
 @app.post("/upload_pdf")
 def upload_pdf(user_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
     user = db.query(User).get(user_id)
@@ -71,7 +89,8 @@ def upload_pdf(user_id: int, file: UploadFile = File(...), db: Session = Depends
 
     return {"message": "PDF uploaded"}
 
-# ---------- CHAT ----------
+# ------------------ CHAT ------------------
+
 @app.post("/chat")
 def chat(data: dict, db: Session = Depends(get_db)):
 
@@ -92,30 +111,29 @@ def chat(data: dict, db: Session = Depends(get_db)):
     if docs:
         context = "\n".join(d.content[:1000] for d in docs)
 
-    # ---------- AI Tutor ----------
+    # ---- AI Tutor ----
     reply = ask_llama(
         formatted + [{"role": "user", "content": msg}],
         skill.level,
         context
     )
 
-    # ---------- AI Grading ----------
+    # ---- AI Grading ----
     try:
         grade_json = grade_answer("คำถามล่าสุด", msg)
         grade_data = json.loads(grade_json)
 
         score = int(grade_data.get("score", 0))
         correct = bool(grade_data.get("correct", False))
-
     except:
         score = 0
         correct = False
 
-    # ---------- Update Level ----------
+    # ---- Update Level ----
     if correct:
         skill.level = min(skill.level + 1, 5)
 
-    # ---------- Save ----------
+    # ---- Save to DB ----
     db.add(ExerciseResult(
         user_id=user_id,
         question=msg,
@@ -135,7 +153,8 @@ def chat(data: dict, db: Session = Depends(get_db)):
         "level": skill.level
     }
 
-# ---------- DASHBOARD ----------
+# ------------------ DASHBOARD ------------------
+
 @app.get("/admin/dashboard")
 def dashboard(user_id: int, db: Session = Depends(get_db)):
 
@@ -146,7 +165,6 @@ def dashboard(user_id: int, db: Session = Depends(get_db)):
     total_chats = db.query(Chat).count()
     total_docs = db.query(Document).count()
 
-    # ===== Daily Average =====
     results = db.query(ExerciseResult).all()
 
     daily_scores = {}
@@ -159,7 +177,6 @@ def dashboard(user_id: int, db: Session = Depends(get_db)):
         for day, scores in daily_scores.items()
     ]
 
-    # ===== Student Progress =====
     students = db.query(User).filter(User.role == "student").all()
     student_progress = []
 
