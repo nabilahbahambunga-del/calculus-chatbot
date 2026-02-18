@@ -3,6 +3,7 @@ from datetime import datetime
 from database import Base
 from sqlalchemy.sql import func
 from sqlalchemy import DateTime
+from sqlalchemy import Boolean
 
 class ExerciseResult(Base):
     __tablename__ = "exercise_results"
@@ -13,13 +14,20 @@ class ExerciseResult(Base):
     correct = Column(Boolean)
     score = Column(Integer)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class User(Base):
     __tablename__ = "users"
+
     id = Column(Integer, primary_key=True)
-    student_id = Column(String, unique=True)
+    student_id = Column(String, unique=True, index=True)
     name = Column(String)
+    email = Column(String, unique=True, index=True)   # ✅ เพิ่ม
     password_hash = Column(String)
     role = Column(String, default="student")
+
+    is_verified = Column(Boolean, default=False)      # ✅ เพิ่ม
+    verification_token = Column(String, nullable=True)  # ✅ เพิ่ม
 
 class Chat(Base):
     __tablename__ = "chats"

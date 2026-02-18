@@ -8,7 +8,9 @@ data = {
     "name": st.text_input("Name"),
     "major": st.text_input("Major"),
     "year": st.number_input("Year", 1, 6),
-    "password": st.text_input("Password", type="password")
+    "password": st.text_input("Password", type="password"),
+    "email" : st.text_input("Email")
+
 }
 
 if st.button("Register"):

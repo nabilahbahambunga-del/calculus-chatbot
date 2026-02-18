@@ -8,11 +8,12 @@ from models import Base, User, Chat, Skill, Document, ExerciseResult
 from auth import hash_password, verify_password
 from ai import ask_llama, grade_answer
 from pdf_utils import pdf_to_text
+from auth import router as auth_router
 
 # ================== APP INIT ==================
 
 app = FastAPI()
-
+app.include_router(auth_router)
 # ================== CORS ==================
 
 app.add_middleware(
