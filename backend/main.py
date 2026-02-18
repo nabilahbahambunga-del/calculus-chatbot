@@ -55,6 +55,9 @@ def register(data: dict, db: Session = Depends(get_db)):
     name = data.get("name")
     password = data.get("password")
 
+    print("PASSWORD RECEIVED:", password)
+    print("PASSWORD LENGTH:", len(password.encode("utf-8")))
+
     if not student_id or not name or not password:
         raise HTTPException(status_code=400, detail="Missing fields")
 
@@ -73,6 +76,7 @@ def register(data: dict, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "registered"}
+
 
 @app.post("/login")
 def login(data: dict, db: Session = Depends(get_db)):
