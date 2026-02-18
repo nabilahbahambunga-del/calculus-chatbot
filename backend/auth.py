@@ -5,9 +5,15 @@ from models import User
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
 import secrets
-from email_utils import send_verification_email
 
-router = APIRouter()
+# ป้องกัน email crash ตอน deploy
+try:
+    from email_utils import send_verification_email
+except:
+    send_verification_email = None
+
+
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -62,15 +68,22 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
         name=data.name,
         email=data.email,
         password_hash=hash_password(data.password),
-        verification_token=token
+        verification_token=token,
+        role="student",
+        is_verified=False
     )
 
     db.add(new_user)
     db.commit()
 
-    send_verification_email(data.email, token)
+    # ส่ง email ถ้ามี config
+    if send_verification_email:
+        try:
+            send_verification_email(data.email, token)
+        except Exception as e:
+            print("Email error:", e)
 
-    return {"message": "Registered successfully. Please verify your email."}
+    return {"message": "Registered successfully. Please verify email."}
 
 
 # ========================
