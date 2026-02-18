@@ -29,7 +29,7 @@ if st.button("Login"):
 
     with st.spinner("กำลังเข้าสู่ระบบ..."):
         res = requests.post(
-            "http://localhost:8000/login",
+            "https://calculus-backend.onrender.com/login",
             json={
                 "student_id": student_id,
                 "password": password

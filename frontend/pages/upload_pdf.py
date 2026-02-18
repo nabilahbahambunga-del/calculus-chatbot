@@ -10,7 +10,7 @@ st.title("Upload PDF")
 file = st.file_uploader("PDF", type=["pdf"])
 if file:
     res = requests.post(
-        "http://localhost:8000/upload_pdf",
+        "https://calculus-backend.onrender.com/upload_pdf",
         params={"user_id": user["id"]},
         files={"file": file}
     )

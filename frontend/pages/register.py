@@ -12,5 +12,5 @@ data = {
 }
 
 if st.button("Register"):
-    requests.post("http://localhost:8000/register", json=data)
+    requests.post("https://calculus-backend.onrender.com/register", json=data)
     st.success("สมัครสำเร็จ")
