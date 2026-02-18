@@ -9,28 +9,25 @@ from auth import hash_password, verify_password
 from ai import ask_llama, grade_answer
 from pdf_utils import pdf_to_text
 
-# ------------------ APP INIT ------------------
+# ================== APP INIT ==================
 
 app = FastAPI()
 
-# ------------------ CORS ------------------
+# ================== CORS ==================
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "https://calculus-backend.onrender.com"
-    ],
+    allow_origins=["*"],   # เปิดหมดก่อนเพื่อความเสถียร
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ------------------ CREATE TABLES ------------------
+# ================== CREATE TABLES ==================
 
 Base.metadata.create_all(bind=engine)
 
-# ------------------ DB DEPENDENCY ------------------
+# ================== DB DEPENDENCY ==================
 
 def get_db():
     db = SessionLocal()
@@ -40,41 +37,72 @@ def get_db():
         db.close()
 
 def require_admin(user):
-    if user.role != "admin":
+    if not user or user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
 
-# ------------------ ROOT ------------------
+# ================== ROOT ==================
 
 @app.get("/")
 def root():
     return {"message": "AI Tutor Backend is running 🚀"}
 
-# ------------------ AUTH ------------------
+# ================== AUTH ==================
 
 @app.post("/register")
 def register(data: dict, db: Session = Depends(get_db)):
+
+    student_id = data.get("student_id")
+    name = data.get("name")
+    password = data.get("password")
+
+    if not student_id or not name or not password:
+        raise HTTPException(status_code=400, detail="Missing fields")
+
+    existing = db.query(User).filter_by(student_id=student_id).first()
+    if existing:
+        return {"error": "User already exists"}
+
     user = User(
-        student_id=data["student_id"],
-        name=data["name"],
-        password_hash=hash_password(data["password"]),
+        student_id=student_id,
+        name=name,
+        password_hash=hash_password(password),
         role="student"
     )
+
     db.add(user)
     db.commit()
+
     return {"message": "registered"}
 
 @app.post("/login")
 def login(data: dict, db: Session = Depends(get_db)):
-    user = db.query(User).filter_by(student_id=data["student_id"]).first()
-    if not user or not verify_password(data["password"], user.password_hash):
-        return {"error": "login failed"}
-    return {"id": user.id, "name": user.name, "role": user.role}
 
-# ------------------ PDF ------------------
+    student_id = data.get("student_id")
+    password = data.get("password")
+
+    if not student_id or not password:
+        raise HTTPException(status_code=400, detail="Missing credentials")
+
+    user = db.query(User).filter_by(student_id=student_id).first()
+
+    if not user:
+        return {"error": "User not found"}
+
+    if not verify_password(password, user.password_hash):
+        return {"error": "Wrong password"}
+
+    return {
+        "id": user.id,
+        "name": user.name,
+        "role": user.role
+    }
+
+# ================== PDF ==================
 
 @app.post("/upload_pdf")
 def upload_pdf(user_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
-    user = db.query(User).get(user_id)
+
+    user = db.get(User, user_id)
     require_admin(user)
 
     os.makedirs("uploads", exist_ok=True)
@@ -84,12 +112,13 @@ def upload_pdf(user_id: int, file: UploadFile = File(...), db: Session = Depends
         shutil.copyfileobj(file.file, f)
 
     text = pdf_to_text(path)
+
     db.add(Document(filename=file.filename, content=text))
     db.commit()
 
     return {"message": "PDF uploaded"}
 
-# ------------------ CHAT ------------------
+# ================== CHAT ==================
 
 @app.post("/chat")
 def chat(data: dict, db: Session = Depends(get_db)):
@@ -100,8 +129,12 @@ def chat(data: dict, db: Session = Depends(get_db)):
     if not user_id or not msg:
         raise HTTPException(status_code=400, detail="user_id and message required")
 
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
     skill = db.query(Skill).filter_by(user_id=user_id).first()
+
     if not skill:
         skill = Skill(user_id=user_id, level=1)
         db.add(skill)
@@ -157,12 +190,12 @@ def chat(data: dict, db: Session = Depends(get_db)):
         "level": skill.level
     }
 
-# ------------------ DASHBOARD ------------------
+# ================== DASHBOARD ==================
 
 @app.get("/admin/dashboard")
 def dashboard(user_id: int, db: Session = Depends(get_db)):
 
-    user = db.query(User).get(user_id)
+    user = db.get(User, user_id)
     require_admin(user)
 
     total_users = db.query(User).filter(User.role == "student").count()
