@@ -1,5 +1,7 @@
 from passlib.context import CryptContext
 
+print("=== AUTH FILE VERSION 3 LOADED ===")
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def normalize_password(password: str) -> str:
