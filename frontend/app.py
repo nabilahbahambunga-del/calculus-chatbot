@@ -24,26 +24,33 @@ body {
 </style>
 """, unsafe_allow_html=True)
 
-# ================= LOGIC =================
+# ================= SESSION CHECK =================
 if "user" not in st.session_state:
     st.switch_page("pages/landing.py")
+    st.stop()
 
 user = st.session_state.get("user")
+
+# กันกรณี user เป็น None
+if not user:
+    st.switch_page("pages/landing.py")
+    st.stop()
 
 # ================= SIDEBAR NAV =================
 with st.sidebar:
     st.markdown("## 🎓 PSU AI Tutor")
-    st.write(f"👤 {user['name']}")
-    st.write(f"🔑 {user['role']}")
+    st.write(f"👤 {user.get('name', 'Guest')}")
+    st.write(f"🔑 {user.get('role', 'student')}")
 
     st.divider()
 
-    page = st.radio(
-        "📌 เมนู",
+    menu_options = (
         ["💬 Chat", "📊 Dashboard", "🚪 Logout"]
-        if user["role"] == "admin"
+        if user.get("role") == "admin"
         else ["💬 Chat", "🚪 Logout"]
     )
+
+    page = st.radio("📌 เมนู", menu_options)
 
 # ================= PAGE ROUTING =================
 if page == "💬 Chat":

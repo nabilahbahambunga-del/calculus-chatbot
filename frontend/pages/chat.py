@@ -4,13 +4,25 @@ import time
 
 st.set_page_config(layout="wide")
 
-user = st.session_state.user
+# ================= PRODUCTION BACKEND =================
+BASE_URL = "https://calculus-backend.onrender.com"
+
+# ================= SESSION CHECK =================
+if "user" not in st.session_state:
+    st.switch_page("pages/login.py")
+    st.stop()
+
+user = st.session_state.get("user")
+
+if not user:
+    st.switch_page("pages/login.py")
+    st.stop()
 
 # ================= SIDEBAR =================
 with st.sidebar:
     st.markdown("## 👤 บัญชีที่เข้าสู่ระบบ")
-    st.write(f"**ชื่อ:** {user['name']}")
-    st.write(f"**Role:** {user['role']}")
+    st.write(f"**ชื่อ:** {user.get('name', 'Unknown')}")
+    st.write(f"**Role:** {user.get('role', 'student')}")
 
     st.divider()
 
@@ -25,7 +37,7 @@ with st.sidebar:
         st.session_state.clear()
         st.switch_page("pages/login.py")
 
-    if user["role"] == "admin":
+    if user.get("role") == "admin":
         st.divider()
         st.page_link("pages/admin_dashboard.py", label="📊 Dashboard")
 
@@ -34,12 +46,13 @@ st.markdown(
     f"""
     <h2 style='text-align:center;'>💬 ห้องสนทนา</h2>
     <p style='text-align:center;color:#6C63FF;'>
-    กำลังใช้งานในชื่อ {user['name']}
+    กำลังใช้งานในชื่อ {user.get('name', '')}
     </p>
     """,
     unsafe_allow_html=True
 )
 
+# ================= CHAT HISTORY =================
 if "history" not in st.session_state:
     st.session_state.history = []
 
@@ -52,23 +65,35 @@ for m in st.session_state.history:
 
 msg = st.chat_input("ถามคำถามแคลคูลัส...")
 
+# ================= SEND MESSAGE =================
 if msg:
     st.session_state.history.append({"role": "user", "content": msg})
 
     with st.spinner("AI กำลังวิเคราะห์..."):
-        res = requests.post(
-            "http://localhost:8000/chat",
-            json={
-                "user_id": user["id"],
-                "message": msg
-            }
-        )
+        try:
+            res = requests.post(
+                f"{BASE_URL}/chat",
+                json={
+                    "user_id": user.get("id", 1),
+                    "message": msg
+                },
+                timeout=30
+            )
 
-    data = res.json()
-    reply = data["reply"]
-    score = data["score"]
-    correct = data["correct"]
-    level = data["level"]
+            if res.status_code != 200:
+                st.error("Backend มีปัญหา กรุณาลองใหม่อีกครั้ง")
+                st.stop()
+
+            data = res.json()
+
+        except Exception as e:
+            st.error("ไม่สามารถเชื่อมต่อกับ Backend ได้")
+            st.stop()
+
+    reply = data.get("reply", "ไม่มีคำตอบ")
+    score = data.get("score", 0)
+    correct = data.get("correct", False)
+    level = data.get("level", 1)
 
     st.session_state.level = level
 
