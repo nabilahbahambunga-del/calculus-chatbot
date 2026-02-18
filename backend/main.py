@@ -94,8 +94,12 @@ def upload_pdf(user_id: int, file: UploadFile = File(...), db: Session = Depends
 @app.post("/chat")
 def chat(data: dict, db: Session = Depends(get_db)):
 
-    user_id = data["user_id"]
-    msg = data["message"]
+    user_id = data.get("user_id")
+    msg = data.get("message")
+
+    if not user_id or not msg:
+        raise HTTPException(status_code=400, detail="user_id and message required")
+
 
     skill = db.query(Skill).filter_by(user_id=user_id).first()
     if not skill:
