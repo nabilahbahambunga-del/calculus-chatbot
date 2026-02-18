@@ -8,7 +8,7 @@ st.title("📊 Learning Analytics Dashboard")
 user = st.session_state.user
 
 res = requests.get(
-    "http://localhost:8000/admin/dashboard",
+    "https://calculus-backend.onrender.com/admin/dashboard",
     params={"user_id": user["id"]}
 )
 
