@@ -19,15 +19,21 @@ function App() {
     const res = await login({
       student_id: "65001",
       password: "1234",
-    });
-    setUser(res);
-  };
+  });
+
+  console.log("LOGIN RESPONSE:", res);
+  setUser(res);
+};
+
 
   const handleChat = async () => {
-    const res = await chat({
-      user_id: user.id,
-      message: message,
-    });
+  console.log("USER:", user);
+
+  const res = await chat({
+    user_id: user.id,
+    message: message,
+  });
+
   setReply(res.reply);
 };
 
