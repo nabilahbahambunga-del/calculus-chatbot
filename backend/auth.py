@@ -3,7 +3,6 @@ from passlib.context import CryptContext
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def normalize_password(password: str) -> str:
-    # จำกัดความยาวไม่เกิน 72 bytes (bcrypt limit)
     return password.encode("utf-8")[:72].decode("utf-8", errors="ignore")
 
 def hash_password(password: str):
