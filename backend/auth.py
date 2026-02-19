@@ -5,15 +5,9 @@ from models import User
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
 import secrets
+from email_utils import send_verification_email
 
-# ป้องกัน email crash ตอน deploy
-try:
-    from email_utils import send_verification_email
-except:
-    send_verification_email = None
-
-
-router = APIRouter(prefix="/auth", tags=["Auth"])
+router = APIRouter()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -68,23 +62,15 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
         name=data.name,
         email=data.email,
         password_hash=hash_password(data.password),
-        verification_token=token,
-        role="student",
-        is_verified=False
+        verification_token=token
     )
 
     db.add(new_user)
     db.commit()
 
-    # ส่ง email ถ้ามี config
-    if send_verification_email:
-        try:
-            send_verification_email(data.email, token)
-        except Exception as e:
-            print("Email error:", e)
+    send_verification_email(data.email, token)
 
-    return {"message": "Registered successfully. Please verify email."}
-
+    return {"message": "Registered successfully. Please verify your email."}
 
 # ========================
 # VERIFY EMAIL
@@ -128,3 +114,17 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
         "user_id": user.id,
         "role": user.role
     }
+
+@router.get("/verify/{token}")
+def verify_email(token: str, db: Session = Depends(get_db)):
+
+    user = db.query(User).filter(User.verification_token == token).first()
+
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid token")
+
+    user.is_verified = True
+    user.verification_token = None
+    db.commit()
+
+    return {"message": "Email verified successfully"}
