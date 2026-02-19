@@ -41,16 +41,38 @@ def send_email(to_email: str, otp: str):
     EMAIL_USER = os.getenv("EMAIL_USER")
     EMAIL_PASS = os.getenv("EMAIL_PASS")
 
-    msg = MIMEText(f"Your verification code is: {otp}")
+    print("========== EMAIL DEBUG ==========")
+    print("TO:", to_email)
+    print("OTP:", otp)
+    print("EMAIL_USER:", EMAIL_USER)
+    print("EMAIL_PASS EXISTS:", EMAIL_PASS is not None)
+    print("=================================")
+
+    if not EMAIL_USER or not EMAIL_PASS:
+        raise Exception("EMAIL_USER or EMAIL_PASS not set in Render")
+
+    msg = MIMEText(f"""
+Your verification code is:
+
+{otp}
+
+This code will expire in 5 minutes.
+""")
+
     msg["Subject"] = "Email Verification - AI Tutor"
     msg["From"] = EMAIL_USER
     msg["To"] = to_email
 
-    server = smtplib.SMTP("smtp.gmail.com", 587)
-    server.starttls()
-    server.login(EMAIL_USER, EMAIL_PASS)
-    server.send_message(msg)
-    server.quit()
+    try:
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(EMAIL_USER, EMAIL_PASS)
+        server.send_message(msg)
+        server.quit()
+        print("EMAIL SENT SUCCESSFULLY")
+    except Exception as e:
+        print("EMAIL ERROR:", str(e))
+        raise HTTPException(status_code=500, detail="Email sending failed")
 
 # ================== SEND OTP ==================
 
@@ -65,6 +87,7 @@ def send_otp(data: dict, db: Session = Depends(get_db)):
     if not all([student_id, name, email, password]):
         raise HTTPException(status_code=400, detail="Missing fields")
 
+    # เช็ค user ซ้ำ
     existing = db.query(User).filter(
         (User.student_id == student_id) |
         (User.email == email)
@@ -72,6 +95,11 @@ def send_otp(data: dict, db: Session = Depends(get_db)):
 
     if existing:
         raise HTTPException(status_code=400, detail="User already exists")
+
+    # ลบ OTP เก่า (กัน spam)
+    db.query(EmailVerification).filter(
+        EmailVerification.email == email
+    ).delete()
 
     otp = str(random.randint(100000, 999999))
     expires = datetime.utcnow() + timedelta(minutes=5)
@@ -100,6 +128,9 @@ def verify_otp(data: dict, db: Session = Depends(get_db)):
     email = data.get("email")
     otp = data.get("otp")
 
+    if not email or not otp:
+        raise HTTPException(status_code=400, detail="Missing email or otp")
+
     record = db.query(EmailVerification).filter(
         EmailVerification.email == email,
         EmailVerification.otp == otp
@@ -109,8 +140,11 @@ def verify_otp(data: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Invalid OTP")
 
     if record.expires_at < datetime.utcnow():
+        db.delete(record)
+        db.commit()
         raise HTTPException(status_code=400, detail="OTP expired")
 
+    # สร้าง user จริง
     new_user = User(
         student_id=record.student_id,
         name=record.name,
@@ -133,6 +167,9 @@ def login(data: dict, db: Session = Depends(get_db)):
     student_id = data.get("student_id")
     password = data.get("password")
 
+    if not student_id or not password:
+        raise HTTPException(status_code=400, detail="Missing credentials")
+
     user = db.query(User).filter_by(student_id=student_id).first()
 
     if not user:
@@ -146,3 +183,9 @@ def login(data: dict, db: Session = Depends(get_db)):
         "name": user.name,
         "role": user.role
     }
+
+# ================== ROOT ==================
+
+@app.get("/")
+def root():
+    return {"message": "OTP Email Verification Backend Running 🚀"}
