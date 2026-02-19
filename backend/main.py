@@ -1,34 +1,31 @@
-from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-import shutil, os, json
+import random
+from datetime import datetime, timedelta
+import smtplib
+from email.mime.text import MIMEText
+import os
 
 from database import SessionLocal, engine
-from models import Base, User, Chat, Skill, Document, ExerciseResult
+from models import Base, User, EmailVerification
 from auth import hash_password, verify_password
-from ai import ask_llama, grade_answer
-from pdf_utils import pdf_to_text
-from auth import router as auth_router
 
 # ================== APP INIT ==================
 
 app = FastAPI()
-app.include_router(auth_router)
-# ================== CORS ==================
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # เปิดหมดก่อนเพื่อความเสถียร
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ================== CREATE TABLES ==================
-
 Base.metadata.create_all(bind=engine)
 
-# ================== DB DEPENDENCY ==================
+# ================== DB ==================
 
 def get_db():
     db = SessionLocal()
@@ -37,47 +34,98 @@ def get_db():
     finally:
         db.close()
 
-def require_admin(user):
-    if not user or user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
+# ================== EMAIL FUNCTION ==================
 
-# ================== ROOT ==================
+def send_email(to_email: str, otp: str):
 
-@app.get("/")
-def root():
-    return {"message": "AI Tutor Backend is running 🚀"}
+    EMAIL_USER = os.getenv("EMAIL_USER")
+    EMAIL_PASS = os.getenv("EMAIL_PASS")
 
-# ================== AUTH ==================
+    msg = MIMEText(f"Your verification code is: {otp}")
+    msg["Subject"] = "Email Verification - AI Tutor"
+    msg["From"] = EMAIL_USER
+    msg["To"] = to_email
 
-@app.post("/register")
-def register(data: dict, db: Session = Depends(get_db)):
+    server = smtplib.SMTP("smtp.gmail.com", 587)
+    server.starttls()
+    server.login(EMAIL_USER, EMAIL_PASS)
+    server.send_message(msg)
+    server.quit()
+
+# ================== SEND OTP ==================
+
+@app.post("/send-otp")
+def send_otp(data: dict, db: Session = Depends(get_db)):
 
     student_id = data.get("student_id")
     name = data.get("name")
+    email = data.get("email")
     password = data.get("password")
 
-    print("PASSWORD RECEIVED:", password)
-    print("PASSWORD LENGTH:", len(password.encode("utf-8")))
-
-    if not student_id or not name or not password:
+    if not all([student_id, name, email, password]):
         raise HTTPException(status_code=400, detail="Missing fields")
 
-    existing = db.query(User).filter_by(student_id=student_id).first()
-    if existing:
-        return {"error": "User already exists"}
+    existing = db.query(User).filter(
+        (User.student_id == student_id) |
+        (User.email == email)
+    ).first()
 
-    user = User(
+    if existing:
+        raise HTTPException(status_code=400, detail="User already exists")
+
+    otp = str(random.randint(100000, 999999))
+    expires = datetime.utcnow() + timedelta(minutes=5)
+
+    verification = EmailVerification(
+        email=email,
         student_id=student_id,
         name=name,
         password_hash=hash_password(password),
+        otp=otp,
+        expires_at=expires
+    )
+
+    db.add(verification)
+    db.commit()
+
+    send_email(email, otp)
+
+    return {"message": "OTP sent to email"}
+
+# ================== VERIFY OTP ==================
+
+@app.post("/verify-otp")
+def verify_otp(data: dict, db: Session = Depends(get_db)):
+
+    email = data.get("email")
+    otp = data.get("otp")
+
+    record = db.query(EmailVerification).filter(
+        EmailVerification.email == email,
+        EmailVerification.otp == otp
+    ).first()
+
+    if not record:
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+
+    if record.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="OTP expired")
+
+    new_user = User(
+        student_id=record.student_id,
+        name=record.name,
+        email=record.email,
+        password_hash=record.password_hash,
         role="student"
     )
 
-    db.add(user)
+    db.add(new_user)
+    db.delete(record)
     db.commit()
 
-    return {"message": "registered"}
+    return {"message": "Registration complete"}
 
+# ================== LOGIN ==================
 
 @app.post("/login")
 def login(data: dict, db: Session = Depends(get_db)):
@@ -85,160 +133,16 @@ def login(data: dict, db: Session = Depends(get_db)):
     student_id = data.get("student_id")
     password = data.get("password")
 
-    if not student_id or not password:
-        raise HTTPException(status_code=400, detail="Missing credentials")
-
     user = db.query(User).filter_by(student_id=student_id).first()
 
     if not user:
-        return {"error": "User not found"}
+        raise HTTPException(status_code=404, detail="User not found")
 
     if not verify_password(password, user.password_hash):
-        return {"error": "Wrong password"}
+        raise HTTPException(status_code=400, detail="Wrong password")
 
     return {
         "id": user.id,
         "name": user.name,
         "role": user.role
-    }
-
-# ================== PDF ==================
-
-@app.post("/upload_pdf")
-def upload_pdf(user_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
-
-    user = db.get(User, user_id)
-    require_admin(user)
-
-    os.makedirs("uploads", exist_ok=True)
-    path = f"uploads/{file.filename}"
-
-    with open(path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    text = pdf_to_text(path)
-
-    db.add(Document(filename=file.filename, content=text))
-    db.commit()
-
-    return {"message": "PDF uploaded"}
-
-# ================== CHAT ==================
-
-@app.post("/chat")
-def chat(data: dict, db: Session = Depends(get_db)):
-
-    user_id = data.get("user_id")
-    msg = data.get("message")
-
-    if not user_id or not msg:
-        raise HTTPException(status_code=400, detail="user_id and message required")
-
-    user = db.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    skill = db.query(Skill).filter_by(user_id=user_id).first()
-
-    if not skill:
-        skill = Skill(user_id=user_id, level=1)
-        db.add(skill)
-        db.commit()
-
-    history = db.query(Chat).filter_by(user_id=user_id).all()
-    formatted = [{"role": c.role, "content": c.content} for c in history]
-
-    context = ""
-    docs = db.query(Document).all()
-    if docs:
-        context = "\n".join(d.content[:1000] for d in docs)
-
-    # ---- AI Tutor ----
-    reply = ask_llama(
-        formatted + [{"role": "user", "content": msg}],
-        skill.level,
-        context
-    )
-
-    # ---- AI Grading ----
-    try:
-        grade_json = grade_answer("คำถามล่าสุด", msg)
-        grade_data = json.loads(grade_json)
-
-        score = int(grade_data.get("score", 0))
-        correct = bool(grade_data.get("correct", False))
-    except:
-        score = 0
-        correct = False
-
-    # ---- Update Level ----
-    if correct:
-        skill.level = min(skill.level + 1, 5)
-
-    # ---- Save to DB ----
-    db.add(ExerciseResult(
-        user_id=user_id,
-        question=msg,
-        correct=correct,
-        score=score
-    ))
-
-    db.add(Chat(user_id=user_id, role="user", content=msg))
-    db.add(Chat(user_id=user_id, role="assistant", content=reply))
-
-    db.commit()
-
-    return {
-        "reply": reply,
-        "score": score,
-        "correct": correct,
-        "level": skill.level
-    }
-
-# ================== DASHBOARD ==================
-
-@app.get("/admin/dashboard")
-def dashboard(user_id: int, db: Session = Depends(get_db)):
-
-    user = db.get(User, user_id)
-    require_admin(user)
-
-    total_users = db.query(User).filter(User.role == "student").count()
-    total_chats = db.query(Chat).count()
-    total_docs = db.query(Document).count()
-
-    results = db.query(ExerciseResult).all()
-
-    daily_scores = {}
-    for r in results:
-        day = r.created_at.date()
-        daily_scores.setdefault(day, []).append(r.score)
-
-    daily_avg = [
-        {"date": str(day), "avg_score": sum(scores)/len(scores)}
-        for day, scores in daily_scores.items()
-    ]
-
-    students = db.query(User).filter(User.role == "student").all()
-    student_progress = []
-
-    for s in students:
-        user_results = db.query(ExerciseResult)\
-            .filter_by(user_id=s.id)\
-            .order_by(ExerciseResult.created_at)\
-            .all()
-
-        scores = [r.score for r in user_results]
-
-        student_progress.append({
-            "name": s.name,
-            "scores": scores
-        })
-
-    return {
-        "total_users": total_users,
-        "total_chats": total_chats,
-        "total_docs": total_docs,
-        "daily_avg": daily_avg,
-        "student_progress": student_progress
     }
