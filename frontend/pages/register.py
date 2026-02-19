@@ -4,13 +4,12 @@ import requests
 st.title("Register")
 
 data = {
-    "student_id": st.text_input("Student ID"),
-    "name": st.text_input("Name"),
-    "major": st.text_input("Major"),
-    "year": st.number_input("Year", 1, 6),
-    "password": st.text_input("Password", type="password"),
-    "email" : st.text_input("Email")
-
+    "email" : st.text_input("อีเมล"),
+    "student_id": st.text_input("รหัสนักศึกษา"),
+    "name": st.text_input("ชื่อ - สกุล"),
+    "major": st.text_input("สาขาวิชา"),
+    "year": st.number_input("ชั้นปี", 1, 4),
+    "password": st.text_input("รหัสผ่าน", type="password")
 }
 
 if st.button("Register"):

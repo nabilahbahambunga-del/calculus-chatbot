@@ -21,7 +21,7 @@ st.markdown("""
 st.markdown("<div class='login-box'>", unsafe_allow_html=True)
 
 st.title("🔐 Login")
-
+email = st.text_input("อีเมล")
 student_id = st.text_input("รหัสนักศึกษา")
 password = st.text_input("รหัสผ่าน", type="password")
 
@@ -31,6 +31,7 @@ if st.button("Login"):
         res = requests.post(
             "https://calculus-backend.onrender.com/login",
             json={
+                "email" : email,
                 "student_id": student_id,
                 "password": password
             }
