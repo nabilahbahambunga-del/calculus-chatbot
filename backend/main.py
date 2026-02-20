@@ -1,15 +1,16 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-import random
+import shutil, os, json, random
 from datetime import datetime, timedelta
 import smtplib
 from email.mime.text import MIMEText
-import os
 
 from database import SessionLocal, engine
-from models import Base, User, EmailVerification
+from models import Base, User, Chat, Skill, Document, ExerciseResult, EmailVerification
 from auth import hash_password, verify_password
+from ai import ask_llama, grade_answer
+from pdf_utils import pdf_to_text
 
 # ================== APP INIT ==================
 
@@ -34,45 +35,30 @@ def get_db():
     finally:
         db.close()
 
-# ================== EMAIL FUNCTION ==================
+def require_admin(user):
+    if not user or user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+# ================== EMAIL ==================
 
 def send_email(to_email: str, otp: str):
 
     EMAIL_USER = os.getenv("EMAIL_USER")
     EMAIL_PASS = os.getenv("EMAIL_PASS")
 
-    print("========== EMAIL DEBUG ==========")
-    print("TO:", to_email)
-    print("OTP:", otp)
-    print("EMAIL_USER:", EMAIL_USER)
-    print("EMAIL_PASS EXISTS:", EMAIL_PASS is not None)
-    print("=================================")
-
     if not EMAIL_USER or not EMAIL_PASS:
-        raise Exception("EMAIL_USER or EMAIL_PASS not set in Render")
+        raise Exception("EMAIL_USER or EMAIL_PASS not set")
 
-    msg = MIMEText(f"""
-Your verification code is:
-
-{otp}
-
-This code will expire in 5 minutes.
-""")
-
+    msg = MIMEText(f"Your verification code is: {otp}")
     msg["Subject"] = "Email Verification - AI Tutor"
     msg["From"] = EMAIL_USER
     msg["To"] = to_email
 
-    try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(EMAIL_USER, EMAIL_PASS)
-        server.send_message(msg)
-        server.quit()
-        print("EMAIL SENT SUCCESSFULLY")
-    except Exception as e:
-        print("EMAIL ERROR:", str(e))
-        raise HTTPException(status_code=500, detail="Email sending failed")
+    server = smtplib.SMTP("smtp.gmail.com", 587)
+    server.starttls()
+    server.login(EMAIL_USER, EMAIL_PASS)
+    server.send_message(msg)
+    server.quit()
 
 # ================== SEND OTP ==================
 
@@ -87,7 +73,6 @@ def send_otp(data: dict, db: Session = Depends(get_db)):
     if not all([student_id, name, email, password]):
         raise HTTPException(status_code=400, detail="Missing fields")
 
-    # เช็ค user ซ้ำ
     existing = db.query(User).filter(
         (User.student_id == student_id) |
         (User.email == email)
@@ -96,7 +81,6 @@ def send_otp(data: dict, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="User already exists")
 
-    # ลบ OTP เก่า (กัน spam)
     db.query(EmailVerification).filter(
         EmailVerification.email == email
     ).delete()
@@ -128,9 +112,6 @@ def verify_otp(data: dict, db: Session = Depends(get_db)):
     email = data.get("email")
     otp = data.get("otp")
 
-    if not email or not otp:
-        raise HTTPException(status_code=400, detail="Missing email or otp")
-
     record = db.query(EmailVerification).filter(
         EmailVerification.email == email,
         EmailVerification.otp == otp
@@ -144,7 +125,6 @@ def verify_otp(data: dict, db: Session = Depends(get_db)):
         db.commit()
         raise HTTPException(status_code=400, detail="OTP expired")
 
-    # สร้าง user จริง
     new_user = User(
         student_id=record.student_id,
         name=record.name,
@@ -167,9 +147,6 @@ def login(data: dict, db: Session = Depends(get_db)):
     student_id = data.get("student_id")
     password = data.get("password")
 
-    if not student_id or not password:
-        raise HTTPException(status_code=400, detail="Missing credentials")
-
     user = db.query(User).filter_by(student_id=student_id).first()
 
     if not user:
@@ -184,8 +161,75 @@ def login(data: dict, db: Session = Depends(get_db)):
         "role": user.role
     }
 
+# ================== CHAT ==================
+
+@app.post("/chat")
+def chat(data: dict, db: Session = Depends(get_db)):
+
+    user_id = data.get("user_id")
+    msg = data.get("message")
+
+    if not user_id or not msg:
+        raise HTTPException(status_code=400, detail="user_id and message required")
+
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    skill = db.query(Skill).filter_by(user_id=user_id).first()
+
+    if not skill:
+        skill = Skill(user_id=user_id, level=1)
+        db.add(skill)
+        db.commit()
+
+    history = db.query(Chat).filter_by(user_id=user_id).all()
+    formatted = [{"role": c.role, "content": c.content} for c in history]
+
+    context = ""
+    docs = db.query(Document).all()
+    if docs:
+        context = "\n".join(d.content[:1000] for d in docs)
+
+    reply = ask_llama(
+        formatted + [{"role": "user", "content": msg}],
+        skill.level,
+        context
+    )
+
+    try:
+        grade_json = grade_answer("คำถามล่าสุด", msg)
+        grade_data = json.loads(grade_json)
+        score = int(grade_data.get("score", 0))
+        correct = bool(grade_data.get("correct", False))
+    except:
+        score = 0
+        correct = False
+
+    if correct:
+        skill.level = min(skill.level + 1, 5)
+
+    db.add(ExerciseResult(
+        user_id=user_id,
+        question=msg,
+        correct=correct,
+        score=score
+    ))
+
+    db.add(Chat(user_id=user_id, role="user", content=msg))
+    db.add(Chat(user_id=user_id, role="assistant", content=reply))
+
+    db.commit()
+
+    return {
+        "reply": reply,
+        "score": score,
+        "correct": correct,
+        "level": skill.level
+    }
+
 # ================== ROOT ==================
 
 @app.get("/")
 def root():
-    return {"message": "OTP Email Verification Backend Running 🚀"}
+    return {"message": "AI Tutor Backend Running 🚀"}
