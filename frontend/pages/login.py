@@ -31,7 +31,6 @@ if st.button("Login"):
         res = requests.post(
             "https://calculus-backend.onrender.com/login",
             json={
-                "email" : email,
                 "student_id": student_id,
                 "password": password
             }
