@@ -43,7 +43,7 @@ with st.form("register_form"):
         name = st.text_input("ชื่อ-นามสกุล")
         major = st.text_input("สาขาวิชา")
 
-    email = st.text_input("อีเมลมหาวิทยาลัย (ตัวอย่าง: 6520310182@psu.ac.th)")
+    email = st.text_input("อีเมลมหาวิทยาลัย (ตัวอย่าง: 6789012345@psu.ac.th)")
     password = st.text_input("รหัสผ่าน", type="password")
 
     submit = st.form_submit_button("✅ สมัครสมาชิก")
