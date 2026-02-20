@@ -21,7 +21,6 @@ st.markdown("""
 st.markdown("<div class='login-box'>", unsafe_allow_html=True)
 
 st.title("🔐 Login")
-email = st.text_input("อีเมล")
 student_id = st.text_input("รหัสนักศึกษา")
 password = st.text_input("รหัสผ่าน", type="password")
 
