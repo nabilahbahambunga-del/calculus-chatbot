@@ -1,14 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
-import random
-import os
+import re
 import json
-import resend
 
 from database import SessionLocal, engine
-from models import Base, User, Chat, Skill, ExerciseResult, EmailVerification
+from models import Base, User, Chat, Skill, ExerciseResult
 from auth import hash_password, verify_password
 from ai import ask_llama, grade_answer
 
@@ -26,8 +23,6 @@ app.add_middleware(
 
 Base.metadata.create_all(bind=engine)
 
-resend.api_key = os.getenv("RESEND_API_KEY")
-
 # ================== DB ==================
 
 def get_db():
@@ -37,32 +32,43 @@ def get_db():
     finally:
         db.close()
 
-# ================== EMAIL FUNCTION ==================
+# ================== VALIDATION ==================
 
-def send_email(to_email: str, otp: str):
+def validate_psu_email(email: str):
+    """
+    ต้องเป็น:
+    - รหัสนักศึกษา
+    - ตามด้วย @psu.ac.th
+    """
+    pattern = r"^\d{10}@psu\.ac\.th$"
+    if not re.match(pattern, email):
+        raise HTTPException(
+            status_code=400,
+            detail="อีเมลต้องเป็น รหัสนักศึกษา@psu.ac.th"
+        )
 
-    if not resend.api_key:
-        raise HTTPException(status_code=500, detail="Email API key not set")
+def validate_password(password: str):
+    """
+    รหัสผ่านต้อง:
+    - ยาวอย่างน้อย 6 ตัว
+    - มีตัวอักษรอย่างน้อย 1 ตัว
+    """
+    if len(password) < 6:
+        raise HTTPException(
+            status_code=400,
+            detail="รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร"
+        )
 
-    try:
-        resend.Emails.send({
-            "from": "PSU AI Tutor <onboarding@resend.dev>",
-            "to": to_email,
-            "subject": "PSU AI Tutor - OTP Verification",
-            "html": f"""
-                <h2>PSU AI Tutor Email Verification</h2>
-                <p>Your OTP code is:</p>
-                <h1>{otp}</h1>
-                <p>This code will expire in 5 minutes.</p>
-            """
-        })
-    except Exception:
-        raise HTTPException(status_code=500, detail="Email sending failed")
+    if not re.search(r"[A-Za-z]", password):
+        raise HTTPException(
+            status_code=400,
+            detail="รหัสผ่านต้องมีตัวอักษรอย่างน้อย 1 ตัว"
+        )
 
-# ================== SEND OTP ==================
+# ================== REGISTER ==================
 
-@app.post("/send-otp")
-def send_otp(data: dict, db: Session = Depends(get_db)):
+@app.post("/register")
+def register(data: dict, db: Session = Depends(get_db)):
 
     student_id = data.get("student_id")
     name = data.get("name")
@@ -72,13 +78,13 @@ def send_otp(data: dict, db: Session = Depends(get_db)):
     if not all([student_id, name, email, password]):
         raise HTTPException(status_code=400, detail="Missing fields")
 
-    # 🔐 บังคับ @psu.ac.th
-    if not email.endswith("@psu.ac.th"):
-        raise HTTPException(
-            status_code=400,
-            detail="กรุณาใช้อีเมลมหาวิทยาลัย @psu.ac.th เท่านั้น"
-        )
+    # 🔐 ตรวจสอบ email format
+    validate_psu_email(email)
 
+    # 🔐 ตรวจสอบ password
+    validate_password(password)
+
+    # 🔍 เช็คว่ามี user ซ้ำไหม
     existing = db.query(User).filter(
         (User.student_id == student_id) |
         (User.email == email)
@@ -87,67 +93,18 @@ def send_otp(data: dict, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="User already exists")
 
-    # ลบ OTP เก่า
-    db.query(EmailVerification).filter(
-        EmailVerification.email == email
-    ).delete()
-
-    otp = str(random.randint(100000, 999999))
-    expires = datetime.utcnow() + timedelta(minutes=5)
-
-    verification = EmailVerification(
-        email=email,
+    new_user = User(
         student_id=student_id,
         name=name,
+        email=email,
         password_hash=hash_password(password),
-        otp=otp,
-        expires_at=expires
-    )
-
-    db.add(verification)
-    db.commit()
-
-    send_email(email, otp)
-
-    return {"message": "OTP sent to email"}
-
-# ================== VERIFY OTP ==================
-
-@app.post("/verify-otp")
-def verify_otp(data: dict, db: Session = Depends(get_db)):
-
-    email = data.get("email")
-    otp = data.get("otp")
-
-    if not email or not otp:
-        raise HTTPException(status_code=400, detail="Missing email or otp")
-
-    record = db.query(EmailVerification).filter(
-        EmailVerification.email == email,
-        EmailVerification.otp == otp
-    ).first()
-
-    if not record:
-        raise HTTPException(status_code=400, detail="Invalid OTP")
-
-    if record.expires_at < datetime.utcnow():
-        db.delete(record)
-        db.commit()
-        raise HTTPException(status_code=400, detail="OTP expired")
-
-    new_user = User(
-        student_id=record.student_id,
-        name=record.name,
-        email=record.email,
-        password_hash=record.password_hash,
         role="student"
     )
 
     db.add(new_user)
-    db.delete(record)
     db.commit()
 
-    return {"message": "Registration complete"}
+    return {"message": "Registration successful"}
 
 # ================== LOGIN ==================
 
