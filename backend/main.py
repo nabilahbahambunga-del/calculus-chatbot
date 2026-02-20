@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import shutil, os, json, random
@@ -7,10 +7,9 @@ import smtplib
 from email.mime.text import MIMEText
 
 from database import SessionLocal, engine
-from models import Base, User, Chat, Skill, Document, ExerciseResult, EmailVerification
+from models import Base, User, Chat, Skill, ExerciseResult, EmailVerification
 from auth import hash_password, verify_password
 from ai import ask_llama, grade_answer
-from pdf_utils import pdf_to_text
 
 # ================== APP INIT ==================
 
@@ -35,19 +34,14 @@ def get_db():
     finally:
         db.close()
 
-def require_admin(user):
-    if not user or user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-# ================== EMAIL ==================
+# ================== EMAIL FUNCTION ==================
 
 def send_email(to_email: str, otp: str):
-
     EMAIL_USER = os.getenv("EMAIL_USER")
     EMAIL_PASS = os.getenv("EMAIL_PASS")
 
     if not EMAIL_USER or not EMAIL_PASS:
-        raise Exception("EMAIL_USER or EMAIL_PASS not set")
+        raise Exception("Email credentials not set")
 
     msg = MIMEText(f"Your verification code is: {otp}")
     msg["Subject"] = "Email Verification - AI Tutor"
@@ -167,17 +161,16 @@ def login(data: dict, db: Session = Depends(get_db)):
 def chat(data: dict, db: Session = Depends(get_db)):
 
     user_id = data.get("user_id")
-    msg = data.get("message")
+    message = data.get("message")
 
-    if not user_id or not msg:
-        raise HTTPException(status_code=400, detail="user_id and message required")
+    if not user_id or not message:
+        raise HTTPException(status_code=400, detail="Missing fields")
 
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
     skill = db.query(Skill).filter_by(user_id=user_id).first()
-
     if not skill:
         skill = Skill(user_id=user_id, level=1)
         db.add(skill)
@@ -186,19 +179,14 @@ def chat(data: dict, db: Session = Depends(get_db)):
     history = db.query(Chat).filter_by(user_id=user_id).all()
     formatted = [{"role": c.role, "content": c.content} for c in history]
 
-    context = ""
-    docs = db.query(Document).all()
-    if docs:
-        context = "\n".join(d.content[:1000] for d in docs)
-
     reply = ask_llama(
-        formatted + [{"role": "user", "content": msg}],
+        formatted + [{"role": "user", "content": message}],
         skill.level,
-        context
+        ""
     )
 
     try:
-        grade_json = grade_answer("คำถามล่าสุด", msg)
+        grade_json = grade_answer("question", message)
         grade_data = json.loads(grade_json)
         score = int(grade_data.get("score", 0))
         correct = bool(grade_data.get("correct", False))
@@ -209,15 +197,15 @@ def chat(data: dict, db: Session = Depends(get_db)):
     if correct:
         skill.level = min(skill.level + 1, 5)
 
+    db.add(Chat(user_id=user_id, role="user", content=message))
+    db.add(Chat(user_id=user_id, role="assistant", content=reply))
+
     db.add(ExerciseResult(
         user_id=user_id,
-        question=msg,
+        question=message,
         correct=correct,
         score=score
     ))
-
-    db.add(Chat(user_id=user_id, role="user", content=msg))
-    db.add(Chat(user_id=user_id, role="assistant", content=reply))
 
     db.commit()
 
