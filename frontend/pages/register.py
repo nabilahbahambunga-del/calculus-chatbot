@@ -3,55 +3,80 @@ import requests
 
 BASE_URL = "https://calculus-backend.onrender.com"
 
-st.title("📝 Register")
+st.set_page_config(page_title="สมัครสมาชิก | PSU AI Tutor", page_icon="🎓")
 
-student_id = st.text_input("Student ID")
-name = st.text_input("Name")
-email = st.text_input("Email")
-password = st.text_input("Password", type="password")
+# ================= UI STYLE =================
+st.markdown("""
+    <style>
+    .main {
+        background-color: #f5f7fa;
+    }
+    .stButton>button {
+        background-color: #003366;
+        color: white;
+        font-weight: bold;
+        border-radius: 10px;
+        height: 45px;
+        width: 100%;
+    }
+    .stTextInput>div>div>input {
+        border-radius: 8px;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# ---------------- SEND OTP ----------------
-if st.button("📧 ส่งรหัส OTP"):
+# ================= HEADER =================
+st.markdown("## 🎓 สมัครสมาชิก PSU AI Tutor")
+st.markdown("ระบบผู้ช่วยสอนแคลคูลัสอัจฉริยะสำหรับนักศึกษามหาวิทยาลัยสงขลานครินทร์")
+st.divider()
 
-    if not student_id or not name or not email or not password:
-        st.error("กรอกข้อมูลให้ครบก่อน")
+# ================= FORM =================
+with st.form("register_form"):
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        student_id = st.text_input("รหัสนักศึกษา (10 หลัก)")
+        year = st.selectbox("ชั้นปี", [1, 2, 3, 4])
+
+    with col2:
+        name = st.text_input("ชื่อ-นามสกุล")
+        major = st.text_input("สาขาวิชา")
+
+    email = st.text_input("อีเมลมหาวิทยาลัย (ตัวอย่าง: 6520310182@psu.ac.th)")
+    password = st.text_input("รหัสผ่าน", type="password")
+
+    submit = st.form_submit_button("✅ สมัครสมาชิก")
+
+# ================= SUBMIT LOGIC =================
+if submit:
+
+    if not student_id or not name or not email or not password or not major:
+        st.error("⚠️ กรุณากรอกข้อมูลให้ครบทุกช่อง")
         st.stop()
 
-    with st.spinner("กำลังส่ง OTP..."):
-        res = requests.post(
-            f"{BASE_URL}/send-otp",
-            json={
-                "student_id": student_id,
-                "name": name,
-                "email": email,
-                "password": password
-            }
-        )
+    with st.spinner("กำลังดำเนินการสมัครสมาชิก..."):
 
-    if res.status_code == 200:
-        st.success("ส่ง OTP ไปยังอีเมลแล้ว 📩")
-        st.session_state.pending_email = email
-    else:
-        st.error(res.json().get("detail", "เกิดข้อผิดพลาด"))
-
-# ---------------- VERIFY OTP ----------------
-if "pending_email" in st.session_state:
-
-    otp = st.text_input("กรอกรหัส OTP")
-
-    if st.button("✅ ยืนยันการสมัคร"):
-
-        with st.spinner("กำลังตรวจสอบ OTP..."):
+        try:
             res = requests.post(
-                f"{BASE_URL}/verify-otp",
+                f"{BASE_URL}/register",
                 json={
-                    "email": st.session_state.pending_email,
-                    "otp": otp
+                    "student_id": student_id,
+                    "name": name,
+                    "email": email,
+                    "password": password,
+                    "year": year,
+                    "major": major
                 }
             )
 
-        if res.status_code == 200:
-            st.success("สมัครสำเร็จ 🎉 กรุณา Login")
-            del st.session_state.pending_email
-        else:
-            st.error(res.json().get("detail", "OTP ไม่ถูกต้อง"))
+            data = res.json()
+
+            if res.status_code == 200:
+                st.success("🎉 สมัครสมาชิกสำเร็จ กรุณาเข้าสู่ระบบ")
+                st.balloons()
+            else:
+                st.error(data.get("detail", "เกิดข้อผิดพลาด"))
+
+        except Exception:
+            st.error("❌ ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้")
