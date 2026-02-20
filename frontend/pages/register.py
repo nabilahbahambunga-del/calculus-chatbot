@@ -10,39 +10,45 @@ name = st.text_input("Name")
 email = st.text_input("Email")
 password = st.text_input("Password", type="password")
 
-# ================== STEP 1: SEND OTP ==================
-if st.button("ส่งรหัสยืนยัน (OTP)"):
+# ---------------- SEND OTP ----------------
+if st.button("📧 ส่งรหัส OTP"):
 
-    res = requests.post(
-        f"{BASE_URL}/send-otp",
-        json={
-            "student_id": student_id,
-            "name": name,
-            "email": email,
-            "password": password
-        }
-    )
+    if not student_id or not name or not email or not password:
+        st.error("กรอกข้อมูลให้ครบก่อน")
+        st.stop()
+
+    with st.spinner("กำลังส่ง OTP..."):
+        res = requests.post(
+            f"{BASE_URL}/send-otp",
+            json={
+                "student_id": student_id,
+                "name": name,
+                "email": email,
+                "password": password
+            }
+        )
 
     if res.status_code == 200:
-        st.success("ส่ง OTP ไปยังอีเมลแล้ว 📧")
+        st.success("ส่ง OTP ไปยังอีเมลแล้ว 📩")
         st.session_state.pending_email = email
     else:
         st.error(res.json().get("detail", "เกิดข้อผิดพลาด"))
 
-# ================== STEP 2: VERIFY OTP ==================
+# ---------------- VERIFY OTP ----------------
 if "pending_email" in st.session_state:
 
-    otp = st.text_input("กรอกรหัส OTP ที่ได้รับ")
+    otp = st.text_input("กรอกรหัส OTP")
 
-    if st.button("ยืนยันการสมัคร"):
+    if st.button("✅ ยืนยันการสมัคร"):
 
-        res = requests.post(
-            f"{BASE_URL}/verify-otp",
-            json={
-                "email": st.session_state.pending_email,
-                "otp": otp
-            }
-        )
+        with st.spinner("กำลังตรวจสอบ OTP..."):
+            res = requests.post(
+                f"{BASE_URL}/verify-otp",
+                json={
+                    "email": st.session_state.pending_email,
+                    "otp": otp
+                }
+            )
 
         if res.status_code == 200:
             st.success("สมัครสำเร็จ 🎉 กรุณา Login")
