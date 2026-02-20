@@ -1,17 +1,18 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-import shutil, os, json, random
 from datetime import datetime, timedelta
-import smtplib
-from email.mime.text import MIMEText
+import random
+import os
+import json
+import resend
 
 from database import SessionLocal, engine
 from models import Base, User, Chat, Skill, ExerciseResult, EmailVerification
 from auth import hash_password, verify_password
 from ai import ask_llama, grade_answer
 
-# ================== APP INIT ==================
+# ================== INIT ==================
 
 app = FastAPI()
 
@@ -25,6 +26,8 @@ app.add_middleware(
 
 Base.metadata.create_all(bind=engine)
 
+resend.api_key = os.getenv("RESEND_API_KEY")
+
 # ================== DB ==================
 
 def get_db():
@@ -37,22 +40,24 @@ def get_db():
 # ================== EMAIL FUNCTION ==================
 
 def send_email(to_email: str, otp: str):
-    EMAIL_USER = os.getenv("EMAIL_USER")
-    EMAIL_PASS = os.getenv("EMAIL_PASS")
 
-    if not EMAIL_USER or not EMAIL_PASS:
-        raise Exception("Email credentials not set")
+    if not resend.api_key:
+        raise HTTPException(status_code=500, detail="Email API key not set")
 
-    msg = MIMEText(f"Your verification code is: {otp}")
-    msg["Subject"] = "Email Verification - AI Tutor"
-    msg["From"] = EMAIL_USER
-    msg["To"] = to_email
-
-    server = smtplib.SMTP("smtp.gmail.com", 587)
-    server.starttls()
-    server.login(EMAIL_USER, EMAIL_PASS)
-    server.send_message(msg)
-    server.quit()
+    try:
+        resend.Emails.send({
+            "from": "PSU AI Tutor <onboarding@resend.dev>",
+            "to": to_email,
+            "subject": "PSU AI Tutor - OTP Verification",
+            "html": f"""
+                <h2>PSU AI Tutor Email Verification</h2>
+                <p>Your OTP code is:</p>
+                <h1>{otp}</h1>
+                <p>This code will expire in 5 minutes.</p>
+            """
+        })
+    except Exception:
+        raise HTTPException(status_code=500, detail="Email sending failed")
 
 # ================== SEND OTP ==================
 
@@ -67,6 +72,13 @@ def send_otp(data: dict, db: Session = Depends(get_db)):
     if not all([student_id, name, email, password]):
         raise HTTPException(status_code=400, detail="Missing fields")
 
+    # 🔐 บังคับ @psu.ac.th
+    if not email.endswith("@psu.ac.th"):
+        raise HTTPException(
+            status_code=400,
+            detail="กรุณาใช้อีเมลมหาวิทยาลัย @psu.ac.th เท่านั้น"
+        )
+
     existing = db.query(User).filter(
         (User.student_id == student_id) |
         (User.email == email)
@@ -75,6 +87,7 @@ def send_otp(data: dict, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="User already exists")
 
+    # ลบ OTP เก่า
     db.query(EmailVerification).filter(
         EmailVerification.email == email
     ).delete()
@@ -105,6 +118,9 @@ def verify_otp(data: dict, db: Session = Depends(get_db)):
 
     email = data.get("email")
     otp = data.get("otp")
+
+    if not email or not otp:
+        raise HTTPException(status_code=400, detail="Missing email or otp")
 
     record = db.query(EmailVerification).filter(
         EmailVerification.email == email,
@@ -140,6 +156,9 @@ def login(data: dict, db: Session = Depends(get_db)):
 
     student_id = data.get("student_id")
     password = data.get("password")
+
+    if not student_id or not password:
+        raise HTTPException(status_code=400, detail="Missing credentials")
 
     user = db.query(User).filter_by(student_id=student_id).first()
 
@@ -220,4 +239,4 @@ def chat(data: dict, db: Session = Depends(get_db)):
 
 @app.get("/")
 def root():
-    return {"message": "AI Tutor Backend Running 🚀"}
+    return {"message": "PSU AI Tutor Backend Running 🚀"}
