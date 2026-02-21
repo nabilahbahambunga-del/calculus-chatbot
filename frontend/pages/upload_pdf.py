@@ -104,7 +104,7 @@ if st.button("Upload File"):
                 "https://calculus-backend.onrender.com/upload_pdf",
                 params={"user_id": user["id"]},
                 files={"file": file},   # 👈 เปลี่ยนตรงนี้
-                timeout=60
+                timeout=300
             )
 
             st.write("Status code:", res.status_code)
