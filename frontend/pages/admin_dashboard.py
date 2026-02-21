@@ -5,7 +5,15 @@ import matplotlib.pyplot as plt
 
 st.title("📊 Learning Analytics Dashboard")
 
+if "user" not in st.session_state:
+    st.error("กรุณาเข้าสู่ระบบก่อน")
+    st.stop()
+
 user = st.session_state.user
+
+if "id" not in user:
+    st.error("ไม่พบรหัสนักศึกษา")
+    st.stop()
 
 res = requests.get(
     "https://calculus-backend.onrender.com/admin/dashboard",
