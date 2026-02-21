@@ -283,6 +283,7 @@ def admin_dashboard(user_id: int, db: Session = Depends(get_db)):
 # ================== UPLOAD PDF ==================
 
 from fastapi import Form
+
 @app.post("/upload_pdf")
 async def upload_pdf(
     user_id: int = Form(...),
