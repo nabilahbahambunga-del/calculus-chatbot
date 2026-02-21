@@ -200,6 +200,38 @@ def admin_dashboard(user_id: int, db: Session = Depends(get_db)):
     if not user or user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
 
+    # ===== Daily Average =====
+    results = db.query(ExerciseResult).all()
+
+    daily = {}
+    for r in results:
+        date = r.created_at.date() if r.created_at else None
+        if not date:
+            continue
+        if date not in daily:
+            daily[date] = []
+        daily[date].append(r.score)
+
+    daily_avg = [
+        {"date": str(d), "avg_score": sum(scores)/len(scores)}
+        for d, scores in daily.items()
+    ]
+
+    # ===== Student Progress =====
+    students = db.query(User).all()
+    student_progress = []
+
+    for s in students:
+        scores = [r.score for r in s.exercise_results]
+        student_progress.append({
+            "name": s.name,
+            "scores": scores
+        })
+
+    return {
+        "daily_avg": daily_avg,
+        "student_progress": student_progress
+    }
 # ================== ROOT ==================
 
 @app.get("/")
