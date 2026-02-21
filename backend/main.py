@@ -192,6 +192,14 @@ def chat(data: dict, db: Session = Depends(get_db)):
         "level": skill.level
     }
 
+@app.get("/admin/dashboard")
+def admin_dashboard(user_id: int, db: Session = Depends(get_db)):
+
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user or user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+
 # ================== ROOT ==================
 
 @app.get("/")

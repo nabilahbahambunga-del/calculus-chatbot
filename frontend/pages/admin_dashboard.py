@@ -5,14 +5,22 @@ import matplotlib.pyplot as plt
 
 st.title("📊 Learning Analytics Dashboard")
 
+# ===== AUTH CHECK =====
 if "user" not in st.session_state:
     st.error("กรุณาเข้าสู่ระบบก่อน")
     st.stop()
 
 user = st.session_state.user
 
-if "id" not in user:
-    st.error("ไม่พบรหัสนักศึกษา")
+# เช็คว่ามี id ไหม
+user_id = user.get("id") or user.get("user_id")
+if not user_id:
+    st.error("User ID not found")
+    st.stop()
+
+# เช็ค role
+if user.get("role") != "admin":
+    st.error("หน้านี้สำหรับ Admin เท่านั้น")
     st.stop()
 
 res = requests.get(
