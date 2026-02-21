@@ -95,28 +95,25 @@ if file:
 
 if st.button("Upload File"):
 
-    st.write("Uploading...")
-    st.write("User ID:", user["id"])
-
     with st.spinner("กำลังอัปโหลด..."):
         try:
             res = requests.post(
                 "https://calculus-backend.onrender.com/upload_pdf",
-                params={"user_id": user["id"]},
-                files={"file": file},   # 👈 เปลี่ยนตรงนี้
+                data={"user_id": str(user["id"])},  # 👈 ส่งเป็น form
+                files={"file": file},
                 timeout=300
             )
 
-            st.write("Status code:", res.status_code)
+            st.write("Status:", res.status_code)
             st.write("Response:", res.text)
 
             if res.status_code == 200:
                 st.success("Upload สำเร็จ 🎉")
             else:
-                st.error("Backend error")
+                st.error("Upload ล้มเหลว")
 
         except Exception as e:
-            st.error("เชื่อมต่อไม่ได้")
+            st.error("Error:")
             st.write(str(e))
 
 st.markdown("</div>", unsafe_allow_html=True)

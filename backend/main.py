@@ -283,32 +283,11 @@ def admin_dashboard(user_id: int, db: Session = Depends(get_db)):
 
 # ================== UPLOAD PDF ==================
 
+
 @app.post("/upload_pdf")
-async def upload_pdf(user_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
-
-    user = db.query(User).filter(User.id == user_id).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
-
-    os.makedirs("uploads", exist_ok=True)
-    file_path = f"uploads/{file.filename}"
-
-    with open(file_path, "wb") as f:
-        content = await file.read()
-        f.write(content)
-
-    text = pdf_to_text(file_path)
-
-    return {
-        "message": "Upload successful",
-        "filename": file.filename
-    }
+async def upload_pdf(
+    user_id: int = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
 # ================== ROOT ==================
-
-@app.get("/")
-def root():
-    return {"message": "PSU AI Tutor Backend Running 🚀"}
