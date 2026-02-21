@@ -20,17 +20,6 @@ st.markdown("""
     height: 0vh;
 }
 
-/* Glass card */
-.login-box {
-    width: 380px;
-    padding: 45px;
-    border-radius: 20px;
-    background: rgba(28, 31, 38, 0.5);
-    backdrop-filter: blur(15px);
-    box-shadow: 0 0 40px rgba(108, 99, 255, 0.3);
-    text-align: center;
-}
-
 /* Title gradient */
 .login-title {
     font-size: 30px;
