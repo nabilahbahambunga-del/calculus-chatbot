@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, BackgroundTasks, Form
 import os
 from pdf_utils import pdf_to_text
 from fastapi.middleware.cors import CORSMiddleware
@@ -279,13 +279,28 @@ def admin_dashboard(user_id: int, db: Session = Depends(get_db)):
         "daily_avg": daily_avg,
         "student_progress": student_progress
     }
+# ================== PDF PROCESSING FUNCTION ==================
+
+def process_pdf(file_path: str):
+    """
+    ฟังก์ชันนี้จะทำงานเบื้องหลัง
+    """
+    try:
+        text = pdf_to_text(file_path)
+
+        # ถ้าอนาคตจะทำ embedding ให้ใส่ตรงนี้
+        # split -> embed -> save vector DB
+
+        print(f"Processed PDF: {file_path}")
+
+    except Exception as e:
+        print("PDF Processing Error:", str(e))
 
 # ================== UPLOAD PDF ==================
 
-from fastapi import Form
-
 @app.post("/upload_pdf")
 async def upload_pdf(
+    background_tasks: BackgroundTasks,
     user_id: int = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
@@ -298,19 +313,28 @@ async def upload_pdf(
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin only")
 
+    if not file.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF allowed")
+
     os.makedirs("uploads", exist_ok=True)
     file_path = f"uploads/{file.filename}"
 
+    # เขียนไฟล์แบบ chunk กัน RAM พัง
     with open(file_path, "wb") as f:
-        content = await file.read()
-        f.write(content)
+        while True:
+            chunk = await file.read(1024 * 1024)
+            if not chunk:
+                break
+            f.write(chunk)
 
-    text = pdf_to_text(file_path)
+    # สั่งให้ process ทีหลัง
+    background_tasks.add_task(process_pdf, file_path)
 
     return {
-        "message": "Upload successful",
+        "message": "Upload successful. กำลังประมวลผลไฟล์...",
         "filename": file.filename
     }
+
 # ================== ROOT ==================
 
 @app.get("/")
