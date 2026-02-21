@@ -12,14 +12,14 @@ st.markdown("""
 .block-container {
     padding-top: 3rem;
     padding-bottom: 3rem;
-    max-width: 650px;
+    max-width: 600px;
 }
 
 /* Title */
 .page-title {
-    font-size: 26px;
+    font-size: 28px;
     font-weight: 700;
-    margin-bottom: 5px;
+    margin-bottom: 6px;
 }
 
 .page-subtitle {
@@ -28,29 +28,18 @@ st.markdown("""
     margin-bottom: 30px;
 }
 
-/* Card */
-.card {
-    padding: 30px;
-    border-radius: 14px;
-    border: 1px solid #e5e7eb;
-    background-color: #ffffff;
-}
-
-/* File info */
-.file-box {
-    margin-top: 15px;
-    padding: 15px;
-    border-radius: 10px;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
+/* File info inline */
+.file-info {
+    margin-top: 10px;
     font-size: 14px;
+    color: #374151;
 }
 
-/* Button clean style */
+/* Clean Button */
 .stButton>button {
     width: 100%;
-    border-radius: 10px;
     padding: 10px;
+    border-radius: 8px;
     font-weight: 600;
     background-color: black;
     color: white;
@@ -58,7 +47,7 @@ st.markdown("""
 }
 
 .stButton>button:hover {
-    background-color: #111827;
+    background-color: #1f2937;
 }
 
 </style>
