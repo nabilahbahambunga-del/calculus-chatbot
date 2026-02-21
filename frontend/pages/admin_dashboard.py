@@ -5,58 +5,50 @@ import matplotlib.pyplot as plt
 
 st.set_page_config(layout="wide")
 
-# ================== CUSTOM CSS ==================
+# =========================
+# CLEAN MINIMAL CSS
+# =========================
 st.markdown("""
 <style>
 
-/* Background */
-.stApp {
-    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-    color: white;
+/* Page spacing */
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
 }
 
-/* Section Title */
+/* Section title */
 .section-title {
-    font-size: 26px;
-    font-weight: 700;
-    background: linear-gradient(90deg, #6C63FF, #00E5FF);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin-bottom: 15px;
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 1rem;
 }
 
-/* Glass Card */
-.glass-card {
-    background: rgba(28, 31, 38, 0.9);
-    padding: 20px;
-    border-radius: 18px;
-    backdrop-filter: blur(12px);
-    box-shadow: 0 0 30px rgba(108, 99, 255, 0.2);
+/* Card style */
+.dashboard-card {
+    background: #ffffff;
+    padding: 25px;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
     margin-bottom: 25px;
 }
 
-/* Metric Box */
-.metric-box {
-    background: #111827;
-    padding: 18px;
-    border-radius: 15px;
-    text-align: center;
-    border: 1px solid #374151;
-}
-
-/* Chart container */
-.chart-container {
-    background: rgba(28, 31, 38, 0.85);
-    padding: 20px;
-    border-radius: 15px;
-    box-shadow: 0 0 20px rgba(0, 229, 255, 0.15);
-    margin-bottom: 30px;
+/* Small muted text */
+.muted-text {
+    color: #6b7280;
+    font-size: 14px;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='section-title'>📊 Learning Analytics Dashboard</div>", unsafe_allow_html=True)
+# =========================
+# HEADER
+# =========================
+
+st.markdown("## 📊 Learning Analytics Dashboard")
+st.markdown("<div class='muted-text'>ภาพรวมผลการเรียนรู้ของนักศึกษา</div>", unsafe_allow_html=True)
+st.divider()
 
 # =========================
 # AUTH CHECK
@@ -90,47 +82,23 @@ with st.spinner("กำลังโหลดข้อมูล..."):
         )
     except Exception as e:
         st.error("ไม่สามารถเชื่อมต่อ Backend ได้")
-        st.write(e)
         st.stop()
 
 if res.status_code != 200:
     st.error(f"Backend error: {res.status_code}")
-    st.write(res.text)
     st.stop()
 
 data = res.json()
 
+# =========================
+# DAILY AVERAGE SECTION
+# =========================
+
+st.markdown("<div class='section-title'>📈 กราฟคะแนนเฉลี่ยรายวัน</div>", unsafe_allow_html=True)
+
+st.markdown("<div class='dashboard-card'>", unsafe_allow_html=True)
+
 daily_data = data.get("daily_avg", [])
-students = data.get("student_progress", [])
-
-# =========================
-# METRIC SUMMARY
-# =========================
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.markdown("<div class='metric-box'>👥 นักศึกษาทั้งหมด<br><h2>{}</h2></div>".format(len(students)), unsafe_allow_html=True)
-
-with col2:
-    total_attempts = sum(len(s.get("scores", [])) for s in students)
-    st.markdown("<div class='metric-box'>📝 จำนวนครั้งทำแบบฝึกหัด<br><h2>{}</h2></div>".format(total_attempts), unsafe_allow_html=True)
-
-with col3:
-    if daily_data:
-        avg_overall = sum(d["avg_score"] for d in daily_data) / len(daily_data)
-        avg_overall = round(avg_overall, 2)
-    else:
-        avg_overall = 0
-    st.markdown("<div class='metric-box'>📊 คะแนนเฉลี่ยรวม<br><h2>{}</h2></div>".format(avg_overall), unsafe_allow_html=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# =========================
-# DAILY AVERAGE CHART
-# =========================
-
-st.markdown("<div class='section-title'>📈 คะแนนเฉลี่ยรายวัน</div>", unsafe_allow_html=True)
 
 if not daily_data:
     st.info("ยังไม่มีข้อมูลคะแนนรายวัน")
@@ -138,38 +106,44 @@ else:
     daily_df = pd.DataFrame(daily_data)
 
     if not daily_df.empty:
-        st.markdown("<div class='chart-container'>", unsafe_allow_html=True)
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(8, 4))
         ax.plot(daily_df["date"], daily_df["avg_score"], marker="o")
         ax.set_ylabel("Average Score")
         ax.set_xlabel("Date")
         plt.xticks(rotation=45)
-        ax.grid(True, alpha=0.3)
+        plt.tight_layout()
         st.pyplot(fig)
-        st.markdown("</div>", unsafe_allow_html=True)
+
+st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================
-# STUDENT PROGRESS
+# STUDENT PROGRESS SECTION
 # =========================
 
 st.markdown("<div class='section-title'>📊 แนวโน้มพัฒนาการรายบุคคล</div>", unsafe_allow_html=True)
+
+students = data.get("student_progress", [])
 
 if not students:
     st.info("ยังไม่มีข้อมูลนักศึกษา")
 else:
     for student in students:
+
+        st.markdown("<div class='dashboard-card'>", unsafe_allow_html=True)
+
         scores = student.get("scores", [])
         name = student.get("name", "Unknown")
 
+        st.markdown(f"**{name}**")
+
         if scores:
-            st.markdown("<div class='chart-container'>", unsafe_allow_html=True)
-            fig, ax = plt.subplots()
+            fig, ax = plt.subplots(figsize=(6, 3))
             ax.plot(scores, marker="o")
-            ax.set_title(name)
             ax.set_ylabel("Score")
             ax.set_xlabel("Attempt")
-            ax.grid(True, alpha=0.3)
+            plt.tight_layout()
             st.pyplot(fig)
-            st.markdown("</div>", unsafe_allow_html=True)
         else:
-            st.write(f"{name} ยังไม่มีข้อมูลคะแนน")
+            st.write("ยังไม่มีข้อมูลคะแนน")
+
+        st.markdown("</div>", unsafe_allow_html=True)
