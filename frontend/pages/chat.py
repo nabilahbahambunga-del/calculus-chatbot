@@ -9,14 +9,11 @@ BASE_URL = "https://calculus-backend.onrender.com"
 # ================= CUSTOM CSS =================
 st.markdown("""
 <style>
-
-/* ===== Background ===== */
 .stApp {
     background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
     color: white;
 }
 
-/* ===== Header ===== */
 .main-title {
     text-align: center;
     font-size: 32px;
@@ -26,13 +23,11 @@ st.markdown("""
     -webkit-text-fill-color: transparent;
 }
 
-/* ===== Sidebar ===== */
 section[data-testid="stSidebar"] {
     background: rgba(28, 31, 38, 0.95);
     backdrop-filter: blur(10px);
 }
 
-/* ===== Chat Bubble ===== */
 .chat-bubble-user {
     background: #6C63FF;
     padding: 12px 16px;
@@ -49,7 +44,6 @@ section[data-testid="stSidebar"] {
     border: 1px solid #6C63FF;
 }
 
-/* ===== Score Card ===== */
 .score-card {
     background: #111827;
     padding: 12px;
@@ -58,7 +52,6 @@ section[data-testid="stSidebar"] {
     border: 1px solid #374151;
 }
 
-/* ===== Level Badge ===== */
 .level-badge {
     background: linear-gradient(90deg, #6C63FF, #00E5FF);
     padding: 5px 12px;
@@ -66,7 +59,6 @@ section[data-testid="stSidebar"] {
     font-weight: bold;
     display: inline-block;
 }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -83,7 +75,6 @@ if not user:
 
 # ================= SIDEBAR =================
 with st.sidebar:
-
     st.markdown("## 👤 บัญชีผู้ใช้")
     st.write(f"**ชื่อ:** {user.get('name', 'Unknown')}")
     st.write(f"**Role:** {user.get('role', 'student')}")
@@ -94,7 +85,6 @@ with st.sidebar:
 
     st.markdown("### 📈 Level")
     st.progress(level / 5)
-
     st.markdown(
         f"<div class='level-badge'>Level {level}/5</div>",
         unsafe_allow_html=True
@@ -112,7 +102,7 @@ with st.sidebar:
 
 # ================= HEADER =================
 st.markdown(
-    f"<div class='main-title'>💬 AI Calculus Tutor</div>",
+    "<div class='main-title'>💬 AI Calculus Tutor</div>",
     unsafe_allow_html=True
 )
 
@@ -182,16 +172,16 @@ if msg:
 
     st.session_state.prev_level = level
 
-    # 🎯 Score Card
-    score_html = f"""
-    <div class='score-card'>
-        📊 คะแนน: {score}/10 <br>
-        {"✅ ถูกต้อง" if correct else "❌ ยังไม่ถูกต้อง"} <br>
-        📈 Level ปัจจุบัน: {level}
-    </div>
-    """
-
-    reply += score_html
+    # ✅ แสดงคะแนนเฉพาะเมื่อมีการประเมินจริง
+    if score > 0:
+        score_html = f"""
+        <div class='score-card'>
+            📊 คะแนน: {score}/10 <br>
+            {"✅ ถูกต้อง" if correct else "❌ ยังไม่ถูกต้อง"} <br>
+            📈 Level ปัจจุบัน: {level}
+        </div>
+        """
+        reply += score_html
 
     st.session_state.history.append(
         {"role": "assistant", "content": reply}
