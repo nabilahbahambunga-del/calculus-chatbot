@@ -8,11 +8,7 @@ st.set_page_config(layout="centered")
 # =========================
 st.markdown("""
 <style>
-
-.block-container {
-    padding-top: 2rem;
-}
-
+            
 .section-title {
     font-size: 22px;
     font-weight: 600;
