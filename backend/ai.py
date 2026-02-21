@@ -3,32 +3,95 @@ from groq import Groq
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-# ---------- Tutor ----------
+# =========================
+# ADAPTIVE TUTOR SYSTEM
+# =========================
+
 def tutor_prompt(level, context):
     return f"""
-คุณคือผู้ช่วยสอนแคลคูลัส 1
-สอนแบบติวเตอร์ อธิบายเป็นขั้นตอน
-อย่าเฉลยทันที ให้แนวทางก่อน
-สอนตามระดับความเข้าใจของผู้ใช้ โดยอิงจากในไฟล์เอกสารเป็นหลัก
-ระดับผู้เรียน: {level}/5
+คุณคือ AI ติวเตอร์วิชาแคลคูลัส 1 แบบ Adaptive Learning
 
-ถ้ามีเอกสาร ใช้ข้อมูลด้านล่าง:
+กฎสำคัญ:
+1. ห้ามเฉลยคำตอบเต็มทันที
+2. ต้องวิเคราะห์ก่อนว่าโจทย์ต้องใช้พื้นฐานอะไร
+3. ถามคำถามวัดความเข้าใจก่อนเสมอ
+4. สอนแบบเป็นขั้นตอน
+5. แทรกแบบฝึกหัดสั้น ๆ ระหว่างทาง
+6. ปรับระดับคำอธิบายตามระดับผู้เรียน (1-5)
+7. โต้ตอบแบบถาม-ตอบ อย่าพูดยาวฝ่ายเดียว
+
+ระดับผู้เรียนปัจจุบัน: {level}/5
+
+แนวทางการสอน:
+- ระดับ 1-2 → อธิบายละเอียดมาก + ยกตัวอย่างง่าย
+- ระดับ 3 → อธิบายปานกลาง + ให้ลองทำบางขั้นเอง
+- ระดับ 4-5 → ให้คิดเองเยอะขึ้น ถามเชิงวิเคราะห์
+
+กระบวนการเมื่อได้รับคำถาม:
+Step 1: วิเคราะห์ prerequisite ที่ต้องใช้
+Step 2: ถามคำถามวัดพื้นฐาน 1 ข้อ
+Step 3: รอคำตอบผู้เรียน
+Step 4: สอนต่อทีละขั้น
+Step 5: ให้ mini exercise สั้น ๆ
+
+ถ้ามีเอกสาร ให้ยึดข้อมูลจากเอกสารก่อน:
 {context}
+
+จำไว้: คุณคือ "ติวเตอร์" ไม่ใช่ "เฉลยข้อสอบ"
 """
 
 def ask_llama(history, level, context=""):
-    messages = [{"role": "system", "content": tutor_prompt(level, context)}]
+    messages = [
+        {"role": "system", "content": tutor_prompt(level, context)}
+    ]
     messages += history
 
     res = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=messages,
-        temperature=0.3
+        temperature=0.4
     )
+
     return res.choices[0].message.content
 
 
-# ---------- Grading ----------
+# =========================
+# UNDERSTANDING ANALYZER
+# =========================
+
+def analyze_understanding(conversation):
+    """
+    ใช้ประเมินระดับผู้เรียนจากบทสนทนา
+    """
+
+    prompt = f"""
+วิเคราะห์ระดับความเข้าใจของผู้เรียนจากบทสนทนานี้
+ให้คะแนนระดับ 1-5
+
+ตอบกลับเป็น JSON เท่านั้น:
+
+{{
+  "level": number,
+  "reason": "สั้น ๆ"
+}}
+
+บทสนทนา:
+{conversation}
+"""
+
+    res = client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0
+    )
+
+    return res.choices[0].message.content
+
+
+# =========================
+# GRADING (FOR MINI EXERCISE)
+# =========================
+
 def grade_answer(question, answer):
     prompt = f"""
 คุณคือผู้ตรวจคำตอบวิชาแคลคูลัส
