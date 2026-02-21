@@ -6,12 +6,6 @@ st.set_page_config(layout="centered")
 # ================== CUSTOM CSS ==================
 st.markdown("""
 <style>
-
-/* Background */
-.stApp {
-    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-}
-
 /* Center container */
 .login-container {
     display: flex;
