@@ -4,8 +4,71 @@ import time
 
 st.set_page_config(layout="wide")
 
-# ================= PRODUCTION BACKEND =================
 BASE_URL = "https://calculus-backend.onrender.com"
+
+# ================= CUSTOM CSS =================
+st.markdown("""
+<style>
+
+/* ===== Background ===== */
+.stApp {
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    color: white;
+}
+
+/* ===== Header ===== */
+.main-title {
+    text-align: center;
+    font-size: 32px;
+    font-weight: 700;
+    background: linear-gradient(90deg, #6C63FF, #00E5FF);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* ===== Sidebar ===== */
+section[data-testid="stSidebar"] {
+    background: rgba(28, 31, 38, 0.95);
+    backdrop-filter: blur(10px);
+}
+
+/* ===== Chat Bubble ===== */
+.chat-bubble-user {
+    background: #6C63FF;
+    padding: 12px 16px;
+    border-radius: 15px;
+    margin-bottom: 10px;
+    color: white;
+}
+
+.chat-bubble-ai {
+    background: #1f2937;
+    padding: 12px 16px;
+    border-radius: 15px;
+    margin-bottom: 10px;
+    border: 1px solid #6C63FF;
+}
+
+/* ===== Score Card ===== */
+.score-card {
+    background: #111827;
+    padding: 12px;
+    border-radius: 12px;
+    margin-top: 10px;
+    border: 1px solid #374151;
+}
+
+/* ===== Level Badge ===== */
+.level-badge {
+    background: linear-gradient(90deg, #6C63FF, #00E5FF);
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-weight: bold;
+    display: inline-block;
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 # ================= SESSION CHECK =================
 if "user" not in st.session_state:
@@ -20,16 +83,22 @@ if not user:
 
 # ================= SIDEBAR =================
 with st.sidebar:
-    st.markdown("## 👤 บัญชีที่เข้าสู่ระบบ")
+
+    st.markdown("## 👤 บัญชีผู้ใช้")
     st.write(f"**ชื่อ:** {user.get('name', 'Unknown')}")
     st.write(f"**Role:** {user.get('role', 'student')}")
 
     st.divider()
 
     level = st.session_state.get("level", 1)
+
     st.markdown("### 📈 Level")
     st.progress(level / 5)
-    st.write(f"{level}/5")
+
+    st.markdown(
+        f"<div class='level-badge'>Level {level}/5</div>",
+        unsafe_allow_html=True
+    )
 
     st.divider()
 
@@ -43,12 +112,12 @@ with st.sidebar:
 
 # ================= HEADER =================
 st.markdown(
-    f"""
-    <h2 style='text-align:center;'>💬 ห้องสนทนา</h2>
-    <p style='text-align:center;color:#6C63FF;'>
-    กำลังใช้งานในชื่อ {user.get('name', '')}
-    </p>
-    """,
+    f"<div class='main-title'>💬 AI Calculus Tutor</div>",
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    f"<p style='text-align:center;color:#A5B4FC;'>กำลังใช้งานในชื่อ {user.get('name','')}</p>",
     unsafe_allow_html=True
 )
 
@@ -60,34 +129,42 @@ if "prev_level" not in st.session_state:
     st.session_state.prev_level = 1
 
 for m in st.session_state.history:
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
+    if m["role"] == "user":
+        st.markdown(
+            f"<div class='chat-bubble-user'>{m['content']}</div>",
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            f"<div class='chat-bubble-ai'>{m['content']}</div>",
+            unsafe_allow_html=True
+        )
 
-msg = st.chat_input("ถามคำถามแคลคูลัส...")
+msg = st.chat_input("พิมพ์คำถามเกี่ยวกับแคลคูลัส...")
 
 # ================= SEND MESSAGE =================
 if msg:
     st.session_state.history.append({"role": "user", "content": msg})
 
-    with st.spinner("AI กำลังวิเคราะห์..."):
+    with st.spinner("🤖 AI กำลังคิด..."):
         try:
             res = requests.post(
                 f"{BASE_URL}/chat",
                 json={
-                    "user_id": user.get("id", 1),
+                    "user_id": user.get("id"),
                     "message": msg
                 },
                 timeout=30
             )
 
             if res.status_code != 200:
-                st.error("Backend มีปัญหา กรุณาลองใหม่อีกครั้ง")
+                st.error("Backend มีปัญหา กรุณาลองใหม่")
                 st.stop()
 
             data = res.json()
 
-        except Exception as e:
-            st.error("ไม่สามารถเชื่อมต่อกับ Backend ได้")
+        except:
+            st.error("ไม่สามารถเชื่อมต่อ Backend ได้")
             st.stop()
 
     reply = data.get("reply", "ไม่มีคำตอบ")
@@ -97,7 +174,7 @@ if msg:
 
     st.session_state.level = level
 
-    # 🎯 Animation Level Up
+    # 🎉 Level Up Animation
     if level > st.session_state.prev_level:
         st.balloons()
         st.success("🎉 Level Up!")
@@ -105,11 +182,16 @@ if msg:
 
     st.session_state.prev_level = level
 
-    result = f"\n\n📊 คะแนน: {score}/10"
-    result += "\n✅ ถูกต้อง" if correct else "\n❌ ยังไม่ถูกต้อง"
-    result += f"\n📈 Level ปัจจุบัน: {level}"
+    # 🎯 Score Card
+    score_html = f"""
+    <div class='score-card'>
+        📊 คะแนน: {score}/10 <br>
+        {"✅ ถูกต้อง" if correct else "❌ ยังไม่ถูกต้อง"} <br>
+        📈 Level ปัจจุบัน: {level}
+    </div>
+    """
 
-    reply += result
+    reply += score_html
 
     st.session_state.history.append(
         {"role": "assistant", "content": reply}
