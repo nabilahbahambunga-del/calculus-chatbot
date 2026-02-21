@@ -1,4 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+import os
+from pdf_utils import pdf_to_text
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import re
@@ -279,6 +281,32 @@ def admin_dashboard(user_id: int, db: Session = Depends(get_db)):
         "student_progress": student_progress
     }
 
+# ================== UPLOAD PDF ==================
+
+@app.post("/upload_pdf")
+async def upload_pdf(user_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    os.makedirs("uploads", exist_ok=True)
+    file_path = f"uploads/{file.filename}"
+
+    with open(file_path, "wb") as f:
+        content = await file.read()
+        f.write(content)
+
+    text = pdf_to_text(file_path)
+
+    return {
+        "message": "Upload successful",
+        "filename": file.filename
+    }
 # ================== ROOT ==================
 
 @app.get("/")
