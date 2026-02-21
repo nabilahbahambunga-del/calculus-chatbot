@@ -22,7 +22,6 @@ st.markdown("<div class='login-box'>", unsafe_allow_html=True)
 
 st.title("🔐 Login")
 student_id = st.text_input("รหัสนักศึกษา")
-email = st.text_input("อีเมล")
 password = st.text_input("รหัสผ่าน", type="password")
 
 if st.button("Login"):
@@ -31,22 +30,21 @@ if st.button("Login"):
         res = requests.post(
             "https://calculus-backend.onrender.com/login",
             json={
-                "email": email,
                 "student_id": student_id,
                 "password": password
             }
         )
 
+    if res.status_code != 200:
+        st.error("เข้าสู่ระบบไม่สำเร็จ")
+        st.write(res.text)
+        st.stop()
+
     data = res.json()
 
-    if "error" not in data:
-        st.session_state.user = data
-        st.success("Login สำเร็จ 🎉")
+    st.session_state.user = data
+    st.success("Login สำเร็จ 🎉")
 
-        # ✅ สำคัญมาก: redirect กลับ app.py
-        st.switch_page("app.py")
-
-    else:
-        st.error("เข้าสู่ระบบไม่สำเร็จ")
+    st.switch_page("app.py")
 
 st.markdown("</div>", unsafe_allow_html=True)

@@ -197,19 +197,24 @@ def admin_dashboard(user_id: int, db: Session = Depends(get_db)):
 
     user = db.query(User).filter(User.id == user_id).first()
 
-    if not user or user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
-    # ===== Daily Average =====
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access only")
+
+    # ===== ดึงข้อมูลคะแนน =====
     results = db.query(ExerciseResult).all()
 
     daily = {}
     for r in results:
-        date = r.created_at.date() if r.created_at else None
-        if not date:
+        if not r.created_at:
             continue
+        date = r.created_at.date()
+
         if date not in daily:
             daily[date] = []
+
         daily[date].append(r.score)
 
     daily_avg = [
@@ -217,15 +222,15 @@ def admin_dashboard(user_id: int, db: Session = Depends(get_db)):
         for d, scores in daily.items()
     ]
 
-    # ===== Student Progress =====
+    # ===== พัฒนาการรายคน =====
     students = db.query(User).all()
     student_progress = []
 
     for s in students:
-        scores = [r.score for r in s.exercise_results]
+        scores = db.query(ExerciseResult).filter_by(user_id=s.id).all()
         student_progress.append({
             "name": s.name,
-            "scores": scores
+            "scores": [x.score for x in scores]
         })
 
     return {

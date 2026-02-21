@@ -17,18 +17,9 @@ if "user" not in st.session_state:
 
 user = st.session_state.user
 
-# ดึง user_id ให้ปลอดภัย
-user_id = user.get("id") or user.get("user_id")
-
-if not user_id:
-    st.error("ไม่พบ User ID")
-    st.stop()
-
-# เช็ค role
 if user.get("role") != "admin":
     st.error("หน้านี้สำหรับ Admin เท่านั้น")
     st.stop()
-
 # =========================
 # CALL BACKEND
 # =========================
