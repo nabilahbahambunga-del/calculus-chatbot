@@ -15,7 +15,7 @@ user = st.session_state.user
 # เช็คว่ามี id ไหม
 user_id = user.get("id") or user.get("user_id")
 if not user_id:
-    st.error("User ID not found")
+    st.error("คุณไม่มีสิทธิ์ในการเข้าถึง")
     st.stop()
 
 # เช็ค role
