@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import re
 from datetime import datetime
-
 from database import SessionLocal, engine
 from models import Base, User, Chat, Skill, ExerciseResult, Conversation
 from auth import hash_password, verify_password
@@ -283,11 +282,36 @@ def admin_dashboard(user_id: int, db: Session = Depends(get_db)):
 
 # ================== UPLOAD PDF ==================
 
-
+from fastapi import Form
 @app.post("/upload_pdf")
 async def upload_pdf(
     user_id: int = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    os.makedirs("uploads", exist_ok=True)
+    file_path = f"uploads/{file.filename}"
+
+    with open(file_path, "wb") as f:
+        content = await file.read()
+        f.write(content)
+
+    text = pdf_to_text(file_path)
+
+    return {
+        "message": "Upload successful",
+        "filename": file.filename
+    }
 # ================== ROOT ==================
+
+@app.get("/")
+def root():
+    return {"message": "PSU AI Tutor Backend Running 🚀"}
