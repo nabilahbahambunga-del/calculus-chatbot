@@ -24,7 +24,7 @@ st.markdown("""
 .login-title {
     font-size: 30px;
     font-weight: 700;
-    background: (90deg, #6C63FF, #00E5FF);
+    background: linear-gradient(90deg, #6C63FF, #00E5FF);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     margin-bottom: 30px;
