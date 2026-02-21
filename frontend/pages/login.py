@@ -1,11 +1,15 @@
 import streamlit as st
 import requests
 
-st.set_page_config(layout="centered")
+st.set_page_config(
+    page_title="AI Calculus Tutor",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-# ================== CUSTOM CSS ==================
+# ซ่อน sidebar และเมนู Streamlit
 st.markdown("""
-style>
+<style>
 [data-testid="stSidebar"] {display: none;}
 header {visibility: hidden;}
 footer {visibility: hidden;}
@@ -55,10 +59,8 @@ html, body, [class*="css"] {
 </style>
 """, unsafe_allow_html=True)
 
-# ================== UI ==================
-
-st.markdown("<div class='login-container'>", unsafe_allow_html=True)
-st.markdown("<div class='login-box'>", unsafe_allow_html=True)
+st.markdown("<div class='main'>", unsafe_allow_html=True)
+st.markdown("<div class='login-card'>", unsafe_allow_html=True)
 
 st.markdown("<div class='login-title'>🔐 AI Calculus Tutor</div>", unsafe_allow_html=True)
 
@@ -83,7 +85,7 @@ if st.button("Login"):
             )
 
             if res.status_code != 200:
-                st.error("เข้าสู่ระบบไม่สำเร็จ ❌")
+                st.error("เข้าสู่ระบบไม่สำเร็จ")
                 st.stop()
 
             data = res.json()
@@ -95,8 +97,6 @@ if st.button("Login"):
     st.session_state.user = data
     st.success("Login สำเร็จ 🎉")
     st.switch_page("app.py")
-
-st.markdown("<div class='footer-text'>© 2026 PSU AI Tutor • Mathematics & Computer Science</div>", unsafe_allow_html=True)
 
 st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
