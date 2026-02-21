@@ -34,6 +34,7 @@ section[data-testid="stSidebar"] {
     border-radius: 15px;
     margin-bottom: 10px;
     color: white;
+    text-align: right;
 }
 
 .chat-bubble-ai {
@@ -73,16 +74,31 @@ if not user:
     st.switch_page("pages/login.py")
     st.stop()
 
+# ================= INITIALIZE SESSION =================
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+if "conversation_id" not in st.session_state:
+    # สร้าง conversation ใหม่อัตโนมัติ
+    res = requests.post(
+        f"{BASE_URL}/conversation/new",
+        json={"user_id": user["id"]}
+    )
+    st.session_state.conversation_id = res.json()["conversation_id"]
+
+if "prev_level" not in st.session_state:
+    st.session_state.prev_level = 1
+
 # ================= SIDEBAR =================
 with st.sidebar:
+
     st.markdown("## 👤 บัญชีผู้ใช้")
-    st.write(f"**ชื่อ:** {user.get('name', 'Unknown')}")
-    st.write(f"**Role:** {user.get('role', 'student')}")
+    st.write(f"**ชื่อ:** {user.get('name')}")
+    st.write(f"**Role:** {user.get('role')}")
 
     st.divider()
 
     level = st.session_state.get("level", 1)
-
     st.markdown("### 📈 Level")
     st.progress(level / 5)
     st.markdown(
@@ -92,12 +108,51 @@ with st.sidebar:
 
     st.divider()
 
+    # ===== NEW CHAT =====
+    if st.button("➕ New Chat"):
+        res = requests.post(
+            f"{BASE_URL}/conversation/new",
+            json={"user_id": user["id"]}
+        )
+        st.session_state.conversation_id = res.json()["conversation_id"]
+        st.session_state.history = []
+        st.rerun()
+
+    st.divider()
+
+    # ===== LOAD CONVERSATIONS =====
+    res = requests.get(
+        f"{BASE_URL}/conversations",
+        params={"user_id": user["id"]}
+    )
+
+    conversations = res.json()
+
+    st.markdown("### 🕘 ประวัติการสนทนา")
+
+    for c in conversations:
+        if st.button(f"💬 Chat {c['id']}", key=f"convo_{c['id']}"):
+            st.session_state.conversation_id = c["id"]
+
+            # โหลดข้อความจาก backend
+            msg_res = requests.get(
+                f"{BASE_URL}/conversation/messages",
+                params={
+                    "conversation_id": c["id"],
+                    "user_id": user["id"]
+                }
+            )
+
+            st.session_state.history = msg_res.json()
+            st.rerun()
+
+    st.divider()
+
     if st.button("🚪 Logout"):
         st.session_state.clear()
         st.switch_page("pages/login.py")
 
     if user.get("role") == "admin":
-        st.divider()
         st.page_link("pages/admin_dashboard.py", label="📊 Dashboard")
 
 # ================= HEADER =================
@@ -107,17 +162,11 @@ st.markdown(
 )
 
 st.markdown(
-    f"<p style='text-align:center;color:#A5B4FC;'>กำลังใช้งานในชื่อ {user.get('name','')}</p>",
+    f"<p style='text-align:center;color:#A5B4FC;'>กำลังใช้งานในชื่อ {user.get('name')}</p>",
     unsafe_allow_html=True
 )
 
-# ================= CHAT HISTORY =================
-if "history" not in st.session_state:
-    st.session_state.history = []
-
-if "prev_level" not in st.session_state:
-    st.session_state.prev_level = 1
-
+# ================= DISPLAY CHAT =================
 for m in st.session_state.history:
     if m["role"] == "user":
         st.markdown(
@@ -134,6 +183,7 @@ msg = st.chat_input("พิมพ์คำถามเกี่ยวกับ�
 
 # ================= SEND MESSAGE =================
 if msg:
+
     st.session_state.history.append({"role": "user", "content": msg})
 
     with st.spinner("🤖 AI กำลังคิด..."):
@@ -141,8 +191,9 @@ if msg:
             res = requests.post(
                 f"{BASE_URL}/chat",
                 json={
-                    "user_id": user.get("id"),
-                    "message": msg
+                    "user_id": user["id"],
+                    "message": msg,
+                    "conversation_id": st.session_state.conversation_id
                 },
                 timeout=30
             )
@@ -158,30 +209,6 @@ if msg:
             st.stop()
 
     reply = data.get("reply", "ไม่มีคำตอบ")
-    score = data.get("score", 0)
-    correct = data.get("correct", False)
-    level = data.get("level", 1)
-
-    st.session_state.level = level
-
-    # 🎉 Level Up Animation
-    if level > st.session_state.prev_level:
-        st.balloons()
-        st.success("🎉 Level Up!")
-        time.sleep(1)
-
-    st.session_state.prev_level = level
-
-    # ✅ แสดงคะแนนเฉพาะเมื่อมีการประเมินจริง
-    if score > 0:
-        score_html = f"""
-        <div class='score-card'>
-            📊 คะแนน: {score}/10 <br>
-            {"✅ ถูกต้อง" if correct else "❌ ยังไม่ถูกต้อง"} <br>
-            📈 Level ปัจจุบัน: {level}
-        </div>
-        """
-        reply += score_html
 
     st.session_state.history.append(
         {"role": "assistant", "content": reply}

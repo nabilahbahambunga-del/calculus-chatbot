@@ -2,12 +2,12 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import re
-import json
+from datetime import datetime
 
 from database import SessionLocal, engine
-from models import Base, User, Chat, Skill, ExerciseResult
+from models import Base, User, Chat, Skill, ExerciseResult, Conversation
 from auth import hash_password, verify_password
-from ai import ask_llama, grade_answer
+from ai import ask_llama
 
 # ================== INIT ==================
 
@@ -35,11 +35,6 @@ def get_db():
 # ================== VALIDATION ==================
 
 def validate_psu_email(email: str):
-    """
-    ต้องเป็น:
-    - รหัสนักศึกษา
-    - ตามด้วย @psu.ac.th
-    """
     pattern = r"^\d{10}@psu\.ac\.th$"
     if not re.match(pattern, email):
         raise HTTPException(
@@ -48,11 +43,6 @@ def validate_psu_email(email: str):
         )
 
 def validate_password(password: str):
-    """
-    รหัสผ่านต้อง:
-    - ยาวอย่างน้อย 6 ตัว
-    - มีตัวอักษรอย่างน้อย 1 ตัว
-    """
     if len(password) < 6:
         raise HTTPException(
             status_code=400,
@@ -78,13 +68,9 @@ def register(data: dict, db: Session = Depends(get_db)):
     if not all([student_id, name, email, password]):
         raise HTTPException(status_code=400, detail="Missing fields")
 
-    # 🔐 ตรวจสอบ email format
     validate_psu_email(email)
-
-    # 🔐 ตรวจสอบ password
     validate_password(password)
 
-    # 🔍 เช็คว่ามี user ซ้ำไหม
     existing = db.query(User).filter(
         (User.student_id == student_id) |
         (User.email == email)
@@ -131,6 +117,69 @@ def login(data: dict, db: Session = Depends(get_db)):
         "role": user.role
     }
 
+# ================== CREATE NEW CONVERSATION ==================
+
+@app.post("/conversation/new")
+def new_conversation(data: dict, db: Session = Depends(get_db)):
+
+    user_id = data.get("user_id")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    convo = Conversation(
+        user_id=user_id,
+        title="New Chat",
+        created_at=datetime.utcnow()
+    )
+
+    db.add(convo)
+    db.commit()
+    db.refresh(convo)
+
+    return {"conversation_id": convo.id}
+
+# ================== GET USER CONVERSATIONS ==================
+
+@app.get("/conversations")
+def get_conversations(user_id: int, db: Session = Depends(get_db)):
+
+    convos = db.query(Conversation).filter_by(user_id=user_id).order_by(
+        Conversation.created_at.desc()
+    ).all()
+
+    return [
+        {
+            "id": c.id,
+            "title": c.title,
+            "created_at": c.created_at
+        }
+        for c in convos
+    ]
+
+# ================== GET MESSAGES IN CONVERSATION ==================
+
+@app.get("/conversation/messages")
+def get_messages(conversation_id: int, user_id: int, db: Session = Depends(get_db)):
+
+    convo = db.query(Conversation).filter_by(
+        id=conversation_id,
+        user_id=user_id
+    ).first()
+
+    if not convo:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    messages = db.query(Chat).filter_by(
+        conversation_id=conversation_id
+    ).order_by(Chat.created_at).all()
+
+    return [
+        {"role": m.role, "content": m.content}
+        for m in messages
+    ]
+
 # ================== CHAT ==================
 
 @app.post("/chat")
@@ -138,59 +187,52 @@ def chat(data: dict, db: Session = Depends(get_db)):
 
     user_id = data.get("user_id")
     message = data.get("message")
+    conversation_id = data.get("conversation_id")
 
-    if not user_id or not message:
-        raise HTTPException(status_code=400, detail="Missing fields")
+    if not all([user_id, message, conversation_id]):
+        raise HTTPException(status_code=400, detail="Missing data")
 
-    user = db.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    convo = db.query(Conversation).filter_by(
+        id=conversation_id,
+        user_id=user_id
+    ).first()
 
-    skill = db.query(Skill).filter_by(user_id=user_id).first()
-    if not skill:
-        skill = Skill(user_id=user_id, level=1)
-        db.add(skill)
-        db.commit()
+    if not convo:
+        raise HTTPException(status_code=403, detail="Invalid conversation")
 
-    history = db.query(Chat).filter_by(user_id=user_id).all()
+    history = db.query(Chat).filter_by(
+        conversation_id=conversation_id
+    ).order_by(Chat.created_at).all()
+
     formatted = [{"role": c.role, "content": c.content} for c in history]
 
     reply = ask_llama(
         formatted + [{"role": "user", "content": message}],
-        skill.level,
+        1,
         ""
     )
 
-    try:
-        grade_json = grade_answer("question", message)
-        grade_data = json.loads(grade_json)
-        score = int(grade_data.get("score", 0))
-        correct = bool(grade_data.get("correct", False))
-    except:
-        score = 0
-        correct = False
-
-    if correct:
-        skill.level = min(skill.level + 1, 5)
-
-    db.add(Chat(user_id=user_id, role="user", content=message))
-    db.add(Chat(user_id=user_id, role="assistant", content=reply))
-
-    db.add(ExerciseResult(
+    db.add(Chat(
         user_id=user_id,
-        question=message,
-        correct=correct,
-        score=score
+        conversation_id=conversation_id,
+        role="user",
+        content=message,
+        created_at=datetime.utcnow()
+    ))
+
+    db.add(Chat(
+        user_id=user_id,
+        conversation_id=conversation_id,
+        role="assistant",
+        content=reply,
+        created_at=datetime.utcnow()
     ))
 
     db.commit()
 
-    return {
-        "reply": reply,
-        "score": score,
-        "correct": correct,
-        "level": skill.level
-    }
+    return {"reply": reply}
+
+# ================== ADMIN DASHBOARD ==================
 
 @app.get("/admin/dashboard")
 def admin_dashboard(user_id: int, db: Session = Depends(get_db)):
@@ -203,13 +245,13 @@ def admin_dashboard(user_id: int, db: Session = Depends(get_db)):
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access only")
 
-    # ===== ดึงข้อมูลคะแนน =====
     results = db.query(ExerciseResult).all()
 
     daily = {}
     for r in results:
         if not r.created_at:
             continue
+
         date = r.created_at.date()
 
         if date not in daily:
@@ -222,7 +264,6 @@ def admin_dashboard(user_id: int, db: Session = Depends(get_db)):
         for d, scores in daily.items()
     ]
 
-    # ===== พัฒนาการรายคน =====
     students = db.query(User).all()
     student_progress = []
 
@@ -237,6 +278,7 @@ def admin_dashboard(user_id: int, db: Session = Depends(get_db)):
         "daily_avg": daily_avg,
         "student_progress": student_progress
     }
+
 # ================== ROOT ==================
 
 @app.get("/")

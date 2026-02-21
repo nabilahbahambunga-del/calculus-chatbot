@@ -1,8 +1,18 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Text,ForeignKey, Boolean, DateTime
 from sqlalchemy.sql import func
 from database import Base
+from sqlalchemy.orm import relationship
+from datetime import datetime
 
+class Conversation(Base):
+    __tablename__ = "conversations"
 
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    title = Column(String, default="New Chat")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    chats = relationship("Chat", back_populates="conversation")
 # ================== USERS ==================
 
 class User(Base):
@@ -42,12 +52,14 @@ class ExerciseResult(Base):
 class Chat(Base):
     __tablename__ = "chats"
 
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, nullable=False)
-    role = Column(String)      # user / assistant
-    content = Column(Text)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    conversation_id = Column(Integer, ForeignKey("conversations.id"))
+    role = Column(String)
+    content = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
+    conversation = relationship("Conversation", back_populates="chats")
 
 # ================== SKILL LEVEL ==================
 
