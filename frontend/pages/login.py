@@ -17,7 +17,7 @@ st.markdown("""
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 60vh;
+    height: 30vh;
 }
 
 /* Glass card */
