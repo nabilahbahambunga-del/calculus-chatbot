@@ -98,11 +98,17 @@ if file:
         with st.spinner("กำลังอัปโหลด..."):
             try:
                 res = requests.post(
-                    "https://calculus-backend.onrender.com/upload_pdf",
-                    params={"user_id": user["id"]},
-                    files={"file": file},
-                    timeout=60
-                )
+              "https://calculus-backend.onrender.com/upload_pdf",
+                params={"user_id": user["id"]},
+                files={
+                     "file": (
+            file.name,
+            file.getvalue(),
+            "application/pdf"
+              )
+                 },
+                timeout=60
+)
 
                 if res.status_code == 200:
                     st.success(res.json().get("message", "Upload สำเร็จ"))
