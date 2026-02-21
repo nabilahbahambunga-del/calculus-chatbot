@@ -93,24 +93,30 @@ if file:
         unsafe_allow_html=True
     )
 
-    if st.button("Upload File"):
+if st.button("Upload File"):
 
-        with st.spinner("กำลังอัปโหลด..."):
-            try:
-                res = requests.post(
-    "https://calculus-backend.onrender.com/upload_pdf",
-    params={"user_id": user["id"]},
-    files={"file": file},
-    timeout=60
-)
+    st.write("Uploading...")
+    st.write("User ID:", user["id"])
 
-                if res.status_code == 200:
-                    st.success(res.json().get("message", "Upload สำเร็จ"))
-                else:
-                    st.error("เกิดข้อผิดพลาดจาก Backend")
-                    st.write(res.text)
+    with st.spinner("กำลังอัปโหลด..."):
+        try:
+            res = requests.post(
+                "https://calculus-backend.onrender.com/upload_pdf",
+                params={"user_id": user["id"]},
+                files={"file": file},   # 👈 เปลี่ยนตรงนี้
+                timeout=60
+            )
 
-            except:
-                st.error("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้")
+            st.write("Status code:", res.status_code)
+            st.write("Response:", res.text)
+
+            if res.status_code == 200:
+                st.success("Upload สำเร็จ 🎉")
+            else:
+                st.error("Backend error")
+
+        except Exception as e:
+            st.error("เชื่อมต่อไม่ได้")
+            st.write(str(e))
 
 st.markdown("</div>", unsafe_allow_html=True)
