@@ -76,6 +76,7 @@ class Skill(Base):
 class Document(Base):
     __tablename__ = "documents"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, index=True)
     filename = Column(String)
-    content = Column(Text)
+    uploaded_by = Column(Integer)
+    created_at = Column(DateTime, default=datetime.utcnow)

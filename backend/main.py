@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 import re
 from datetime import datetime
 from database import SessionLocal, engine
-from models import Base, User, Chat, Skill, ExerciseResult, Conversation
+from models import Base, User, Chat, Skill, ExerciseResult, Conversation, Document
 from auth import hash_password, verify_password
 from ai import ask_llama
 from rag_keyword import split_text, save_chunks,search_keyword
@@ -340,7 +340,7 @@ async def upload_pdf(
     os.makedirs("uploads", exist_ok=True)
     file_path = f"uploads/{file.filename}"
 
-    # เขียนไฟล์แบบ chunk กัน RAM พัง
+    # เขียนไฟล์แบบ chunk
     with open(file_path, "wb") as f:
         while True:
             chunk = await file.read(1024 * 1024)
@@ -348,14 +348,22 @@ async def upload_pdf(
                 break
             f.write(chunk)
 
-    # สั่งให้ process ทีหลัง
+    # บันทึกลง DB
+    doc = Document(
+        filename=file.filename,
+        file_path=file_path,
+        uploaded_by=user_id
+    )
+    db.add(doc)
+    db.commit()
+
+    # ประมวลผลทีหลัง
     background_tasks.add_task(process_pdf, file_path)
 
     return {
         "message": "Upload successful. กำลังประมวลผลไฟล์...",
         "filename": file.filename
     }
-
 # ================== ROOT ==================
 
 @app.get("/")
