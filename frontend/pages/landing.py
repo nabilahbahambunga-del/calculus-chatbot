@@ -22,13 +22,13 @@ st.markdown("""
 
 st.markdown("""
 <div class="hero">
-    <h1>🎓 PSU AI Calculus Tutor</h1>
-    <h3>Adaptive Learning System Powered by LLaMA</h3>
-    <p>ระบบผู้ช่วยสอนอัจฉริยะ พร้อมวิเคราะห์พัฒนาการผู้เรียนแบบ Real-time</p>
+    <h1>🎓AI Calculus Tutor</h1>
+    <h3>Artificial Intelligence Chatbot System for Calculus I Learning Guidance</h3>
+    <p>ระบบแชทบอทปัญญาประดิษฐ์เพื่อแนะนำการเรียนรายวิชาแคลคูลัส I</p>
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown("## 🚀 คุณสมบัติเด่น")
+st.markdown("## 🚀 คุณสมบัติ")
 
 col1, col2, col3 = st.columns(3)
 

@@ -70,7 +70,7 @@ if user.get("role") != "admin":
 # =========================
 
 st.markdown("<div class='page-title'>Upload PDF Document</div>", unsafe_allow_html=True)
-st.markdown("<div class='page-subtitle'>อัปโหลดเอกสารเพื่อใช้เป็นฐานความรู้ของ AI Tutor</div>", unsafe_allow_html=True)
+st.markdown("<div class='page-subtitle'>อัปโหลดเอกสารเพื่อใช้เป็นฐานความรู้</div>", unsafe_allow_html=True)
 
 st.markdown("<div class='card'>", unsafe_allow_html=True)
 
@@ -99,7 +99,7 @@ if st.button("Upload File"):
         try:
             res = requests.post(
                 "https://calculus-backend.onrender.com/upload_pdf",
-                data={"user_id": str(user["id"])},  # 👈 ส่งเป็น form
+                data={"user_id": str(user["id"])}, 
                 files={"file": file},
                 timeout=300
             )

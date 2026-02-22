@@ -3,7 +3,7 @@ import requests
 
 BASE_URL = "https://calculus-backend.onrender.com"
 
-st.set_page_config(page_title="สมัครสมาชิก | PSU AI Tutor", page_icon="🎓")
+st.set_page_config(page_title="สมัครสมาชิก | AI Tutor", page_icon="🎓")
 
 # ================= UI STYLE =================
 st.markdown("""
@@ -26,7 +26,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ================= HEADER =================
-st.markdown("## 🎓 สมัครสมาชิก PSU AI Tutor")
+st.markdown("## 🎓 สมัครสมาชิก AI Tutor")
 st.markdown("ระบบผู้ช่วยสอนแคลคูลัสอัจฉริยะสำหรับนักศึกษามหาวิทยาลัยสงขลานครินทร์")
 st.divider()
 

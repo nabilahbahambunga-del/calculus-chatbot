@@ -179,7 +179,7 @@ for m in st.session_state.history:
             unsafe_allow_html=True
         )
 
-msg = st.chat_input("พิมพ์คำถามเกี่ยวกับแคลคูลัส...")
+msg = st.chat_input("พิมพ์คำถาม...")
 
 # ================= SEND MESSAGE =================
 if msg:
