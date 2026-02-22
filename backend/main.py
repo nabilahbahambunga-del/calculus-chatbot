@@ -9,6 +9,7 @@ from database import SessionLocal, engine
 from models import Base, User, Chat, Skill, ExerciseResult, Conversation
 from auth import hash_password, verify_password
 from ai import ask_llama
+from rag_keyword import split_text, save_chunks,search_keyword
 
 # ================== INIT ==================
 
@@ -207,12 +208,31 @@ def chat(data: dict, db: Session = Depends(get_db)):
 
     formatted = [{"role": c.role, "content": c.content} for c in history]
 
+    # -------------------------
+    # ดึง context จากเอกสาร (RAG)
+    # -------------------------
+    contexts = search_keyword(message)
+    context_text = "\n\n".join(contexts)
+
+    augmented_prompt = f"""
+คุณเป็น AI Tutor
+ใช้ข้อมูลด้านล่างในการตอบคำถาม
+ถ้าไม่มีข้อมูลที่เกี่ยวข้อง ให้ตอบตามความรู้ทั่วไป
+
+ข้อมูลจากเอกสาร:
+{context_text}
+
+คำถาม:
+{message}
+"""
+
     reply = ask_llama(
-        formatted + [{"role": "user", "content": message}],
+        formatted + [{"role": "user", "content": augmented_prompt}],
         1,
         ""
     )
 
+    # บันทึก user message
     db.add(Chat(
         user_id=user_id,
         conversation_id=conversation_id,
@@ -221,6 +241,7 @@ def chat(data: dict, db: Session = Depends(get_db)):
         created_at=datetime.utcnow()
     ))
 
+    # บันทึก AI reply
     db.add(Chat(
         user_id=user_id,
         conversation_id=conversation_id,
@@ -288,10 +309,10 @@ def process_pdf(file_path: str):
     try:
         text = pdf_to_text(file_path)
 
-        # ถ้าอนาคตจะทำ embedding ให้ใส่ตรงนี้
-        # split -> embed -> save vector DB
+        chunks = split_text(text)
+        save_chunks(chunks)
 
-        print(f"Processed PDF: {file_path}")
+        print("Keyword RAG indexing complete")
 
     except Exception as e:
         print("PDF Processing Error:", str(e))
